@@ -24,6 +24,7 @@ var host = new HostBuilder()
     {
         builder.UseMiddleware<ClaimsPrincipalMiddleware>();
         builder.UseMiddleware<ExceptionHandlingMiddleware>();
+        builder.UseMiddleware<MuliTenantFunctionsWorkerMiddleware>();
     })
     .Build();
 

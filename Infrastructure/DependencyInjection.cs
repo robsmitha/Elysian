@@ -43,7 +43,8 @@ namespace Elysian.Infrastructure
 
         private static IServiceCollection AddMultiTenantFeatures(this IServiceCollection services, IConfiguration configuration)
         {
-            services.AddDbContext<ElysianContext>();
+            services.AddDbContext<ElysianContext>(options 
+                => options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
             services.AddDbContext<TenantContext>(options
                 => options.UseSqlServer(configuration.GetConnectionString("TenantConnection")));

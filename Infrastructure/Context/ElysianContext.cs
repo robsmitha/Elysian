@@ -40,13 +40,6 @@ namespace Elysian.Infrastructure.Context
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            if (TenantInfo is not ElysianTenantInfo elysianTenantInfo)
-            {
-                throw new InvalidOperationException();
-            }
-
-            optionsBuilder.UseSqlServer(elysianTenantInfo.ConnectionString);
-
             base.OnConfiguring(optionsBuilder);
         }
 
@@ -68,16 +61,14 @@ namespace Elysian.Infrastructure.Context
             var multiTenantContextSetter = serviceProvider.GetRequiredService<IMultiTenantContextSetter>();
             multiTenantContextSetter.MultiTenantContext = new MultiTenantContext<ElysianTenantInfo>
             {
-                TenantInfo = new ElysianTenantInfo
-                {
-                    Identifier = Guid.NewGuid().ToString(),
-                    ConnectionString = "Server=(localdb)\\mssqllocaldb;Database=Elysian;Trusted_Connection=True;MultipleActiveResultSets=true"
-                }
+                TenantInfo = new ElysianTenantInfo()
             };
 
+            var builder = new DbContextOptionsBuilder<ElysianContext>()
+                .UseSqlServer("Server=(localdb)\\mssqllocaldb;Database=Elysian;Trusted_Connection=True;MultipleActiveResultSets=true");
             return new (
                 multiTenantContextAccessor: serviceProvider.GetRequiredService<IMultiTenantContextAccessor>(),
-                options: new DbContextOptionsBuilder<ElysianContext>().Options);
+                options: builder.Options);
         }
     }
 }
