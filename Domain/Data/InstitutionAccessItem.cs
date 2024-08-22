@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Finbuckle.MultiTenant;
 
 namespace Elysian.Domain.Data
 {
@@ -30,7 +31,7 @@ namespace Elysian.Domain.Data
                     .IsUnique()
                     .HasDatabaseName("AK_InstitutionAccessItem_InstitutionId_UserId");
 
-                builder.ToTable("InstitutionAccessItem");
+                builder.ToTable("InstitutionAccessItem").IsMultiTenant();
             }
         }
     }

@@ -3,20 +3,17 @@ using Azure.Storage.Sas;
 using Azure.Storage;
 using Elysian.Application.Exceptions;
 using Elysian.Application.Interfaces;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
-using System.ComponentModel;
 using Azure.Storage.Blobs.Models;
+using Microsoft.Extensions.Options;
+using Elysian.Infrastructure.Settings;
 
 namespace Elysian.Infrastructure.Services
 {
-    public class AzureStorageClient(IConfiguration configuration, BlobServiceClient blobServiceClient) 
+    public class AzureStorageClient(IOptions<AzureStorageSettings> azureStorageSettings, BlobServiceClient blobServiceClient) 
         : IAzureStorageClient
     {
+        private readonly AzureStorageSettings _azureStorageSettings = azureStorageSettings.Value;
+
         public async Task<BlobContainerClient> GetBlobContainerClientAsync(string blobContainerName)
         {
             var containerClient = blobServiceClient.GetBlobContainerClient(blobContainerName);
@@ -52,9 +49,8 @@ namespace Elysian.Infrastructure.Services
             };
             sasBuilder.SetPermissions(permissions);
 
-            var accountKey = configuration.GetSection("Azure:AccountKey").Get<string>();
             var sasToken = sasBuilder.ToSasQueryParameters(
-                new StorageSharedKeyCredential(blobServiceClient.AccountName, accountKey)).ToString();
+                new StorageSharedKeyCredential(blobServiceClient.AccountName, _azureStorageSettings.AccountKey)).ToString();
 
             return sasToken;
         }

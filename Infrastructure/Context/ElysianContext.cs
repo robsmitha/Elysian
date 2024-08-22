@@ -1,11 +1,26 @@
-﻿using Elysian.Domain.Data;
+﻿using Elysian.Application.Features.MultiTenant;
+using Elysian.Domain.Data;
+using Finbuckle.MultiTenant;
+using Finbuckle.MultiTenant.Abstractions;
+using Finbuckle.MultiTenant.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Elysian.Infrastructure.Context
 {
-    public partial class ElysianContext(DbContextOptions<ElysianContext> options) : DbContext(options)
+    public partial class ElysianContext : MultiTenantDbContext
     {
+        public ElysianContext(IMultiTenantContextAccessor multiTenantContextAccessor) : base(multiTenantContextAccessor)
+        {
+        }
+
+        public ElysianContext(IMultiTenantContextAccessor multiTenantContextAccessor, DbContextOptions<ElysianContext> options) 
+            : base(multiTenantContextAccessor, options)
+        {
+
+        }
+
         public DbSet<Budget> Budgets { get; set; }
         public DbSet<BudgetAccessItem> BudgetAccessItems { get; set; }
         public DbSet<BudgetCategory> BudgetCategories { get; set; }
@@ -23,21 +38,46 @@ namespace Elysian.Infrastructure.Context
         public DbSet<TransactionCategory> TransactionCategories { get; set; }
         public DbSet<UnitType> UnitTypes { get; set; }
 
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            if (TenantInfo is not ElysianTenantInfo elysianTenantInfo)
+            {
+                throw new InvalidOperationException();
+            }
+
+            optionsBuilder.UseSqlServer(elysianTenantInfo.ConnectionString);
+
+            base.OnConfiguring(optionsBuilder);
+        }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            base.OnModelCreating(modelBuilder);
-
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(ElysianContext).Assembly);
+
+            base.OnModelCreating(modelBuilder);
         }
     }
     public class ElysianContextFactory : IDesignTimeDbContextFactory<ElysianContext>
     {
         public ElysianContext CreateDbContext(string[] args)
         {
-            var optionsBuilder = new DbContextOptionsBuilder<ElysianContext>();
-            optionsBuilder.UseSqlServer("Server=(localdb)\\mssqllocaldb;Database=Elysian;Trusted_Connection=True;MultipleActiveResultSets=true");
+            var services = new ServiceCollection();
+            services.AddMultiTenant<ElysianTenantInfo>().WithInMemoryStore();
+            var serviceProvider = services.BuildServiceProvider();
 
-            return new ElysianContext(optionsBuilder.Options);
+            var multiTenantContextSetter = serviceProvider.GetRequiredService<IMultiTenantContextSetter>();
+            multiTenantContextSetter.MultiTenantContext = new MultiTenantContext<ElysianTenantInfo>
+            {
+                TenantInfo = new ElysianTenantInfo
+                {
+                    Identifier = Guid.NewGuid().ToString(),
+                    ConnectionString = "Server=(localdb)\\mssqllocaldb;Database=Elysian;Trusted_Connection=True;MultipleActiveResultSets=true"
+                }
+            };
+
+            return new (
+                multiTenantContextAccessor: serviceProvider.GetRequiredService<IMultiTenantContextAccessor>(),
+                options: new DbContextOptionsBuilder<ElysianContext>().Options);
         }
     }
 }

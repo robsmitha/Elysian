@@ -1,10 +1,13 @@
 ﻿using Azure.Storage.Blobs;
 using CapitolSharp.Congress;
+using Elysian.Application.Features.MultiTenant;
 using Elysian.Application.Interfaces;
 using Elysian.Infrastructure.Context;
 using Elysian.Infrastructure.Identity;
 using Elysian.Infrastructure.Services;
 using Elysian.Infrastructure.Settings;
+using Finbuckle.MultiTenant;
+using Finbuckle.MultiTenant.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,10 +24,7 @@ namespace Elysian.Infrastructure
     {
         public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
         {
-            services.AddDbContext<ElysianContext>(options 
-                => options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
-
-            services.AddSingleton<IClaimsPrincipalAccessor, ClaimsPrincipalAccessor>();
+            services.AddAuthenticationFeatures();
 
             services.AddContentManagementFeatures();
 
@@ -36,7 +36,28 @@ namespace Elysian.Infrastructure
 
             services.AddAzureStorageFeatures(configuration);
 
+            services.AddMultiTenantFeatures(configuration);
+
             return services;
+        }
+
+        private static IServiceCollection AddMultiTenantFeatures(this IServiceCollection services, IConfiguration configuration)
+        {
+            services.AddDbContext<ElysianContext>();
+
+            services.AddDbContext<TenantContext>(options
+                => options.UseSqlServer(configuration.GetConnectionString("TenantConnection")));
+
+            services.AddMultiTenant<ElysianTenantInfo>()
+                .WithEFCoreStore<TenantContext, ElysianTenantInfo>()
+                .WithHeaderStrategy();
+
+            return services;
+        }
+
+        private static IServiceCollection AddAuthenticationFeatures(this IServiceCollection services)
+        {
+            return services.AddSingleton<IClaimsPrincipalAccessor, ClaimsPrincipalAccessor>();
         }
 
         private static IServiceCollection AddContentManagementFeatures(this IServiceCollection services)
@@ -53,7 +74,6 @@ namespace Elysian.Infrastructure
         {
             services.AddHttpClient("GitHubApi", (serviceProvider, httpClient) =>
             {
-
                 httpClient.BaseAddress = new Uri("https://api.github.com");
 
                 var configuration = serviceProvider.GetRequiredService<IConfiguration>();
@@ -109,12 +129,13 @@ namespace Elysian.Infrastructure
 
         private static IServiceCollection AddAzureStorageFeatures(this IServiceCollection services, IConfiguration configuration)
         {
-            return services.AddSingleton(sp =>
-            {
-                var config = sp.GetService<IConfiguration>();
-                var azureStorageConnectionString = configuration.GetConnectionString("AzureStorageConnectionString");
-                return new BlobServiceClient(azureStorageConnectionString);
-            });
+            return services.Configure<AzureStorageSettings>(configuration.GetSection("AzureStorage:Key"))
+                .AddSingleton(sp =>
+                {
+                    var config = sp.GetService<IConfiguration>();
+                    var azureStorageConnectionString = configuration.GetConnectionString("AzureStorageConnectionString");
+                    return new BlobServiceClient(azureStorageConnectionString);
+                });
         }
     }
 }

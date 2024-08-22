@@ -1,4 +1,5 @@
 ﻿using Elysian.Domain.Seedwork;
+using Finbuckle.MultiTenant;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System;
@@ -41,7 +42,7 @@ namespace Elysian.Domain.Data
                     .HasForeignKey(b => b.ProductId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                builder.ToTable("ProductImage");
+                builder.ToTable("ProductImage").IsMultiTenant();
             }
         }
     }

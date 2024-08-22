@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Elysian.Domain.Seedwork;
+using Finbuckle.MultiTenant;
 
 namespace Elysian.Domain.Data
 {
@@ -34,7 +35,7 @@ namespace Elysian.Domain.Data
                 builder.Property(e => e.BillType).IsRequired();
                 builder.Property(e => e.BillNumber).IsRequired();
 
-                builder.ToTable("BillTracking");
+                builder.ToTable("BillTracking").IsMultiTenant();
             }
         }
     }

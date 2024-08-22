@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Finbuckle.MultiTenant;
 
 namespace Elysian.Domain.Data
 {
@@ -38,7 +39,7 @@ namespace Elysian.Domain.Data
                     .HasForeignKey(tc => tc.BudgetId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                builder.ToTable("TransactionCategory");
+                builder.ToTable("TransactionCategory").IsMultiTenant();
             }
         }
     }

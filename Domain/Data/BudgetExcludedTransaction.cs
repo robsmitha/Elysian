@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.ComponentModel.DataAnnotations.Schema;
+using Finbuckle.MultiTenant;
 
 namespace Elysian.Domain.Data
 {
@@ -32,7 +33,7 @@ namespace Elysian.Domain.Data
                     .HasForeignKey(bet => bet.BudgetId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                builder.ToTable("BudgetExcludedTransaction");
+                builder.ToTable("BudgetExcludedTransaction").IsMultiTenant();
             }
         }
     }

@@ -27,7 +27,7 @@ var host = new HostBuilder()
     })
     .Build();
 
-var environment = host.Services.GetService<IHostEnvironment>();
+var environment = host.Services.GetRequiredService<IHostEnvironment>();
 if (environment.IsDevelopment())
 {
     var db = host.Services.GetRequiredService<ElysianContext>();

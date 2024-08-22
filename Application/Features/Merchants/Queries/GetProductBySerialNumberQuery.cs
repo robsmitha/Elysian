@@ -1,8 +1,10 @@
 ﻿using Azure.Storage.Sas;
 using Elysian.Application.Exceptions;
+using Elysian.Application.Features.MultiTenant;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
 using Elysian.Infrastructure.Context;
+using Finbuckle.MultiTenant.Abstractions;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
@@ -12,9 +14,6 @@ namespace Elysian.Application.Features.Merchants.Queries
     public class GetProductBySerialNumberQuery(string serialNumber) : IRequest<GetProductBySerialNumberQuery.Response>
     {
         public string SerialNumber { get; set; } = serialNumber;
-        // TODO: finbuckle
-        public string TenantContainerPrefix { get; set; } = "";
-        public string ProductImageContainerPrefix { get; set; } = "";
 
         public class Response
         {
@@ -22,17 +21,19 @@ namespace Elysian.Application.Features.Merchants.Queries
             public List<Uri> ImagesUris { get; set; }
         }
 
-        public class Handler(ElysianContext context, IClaimsPrincipalAccessor claimsPrincipalAccessor, IAzureStorageClient azureStorageClient) 
+        public class Handler(ElysianContext context, IClaimsPrincipalAccessor claimsPrincipalAccessor, IAzureStorageClient azureStorageClient,
+            IMultiTenantContextAccessor<ElysianTenantInfo> multiTenantContextAccessor) 
             : IRequestHandler<GetProductBySerialNumberQuery, Response>
         {
             public async Task<Response> Handle(GetProductBySerialNumberQuery request, CancellationToken cancellationToken)
             {
+                var tenantInfo = multiTenantContextAccessor.MultiTenantContext.TenantInfo;
                 var (product, images) = await GetProductExtensionsAsync(c => c.SerialNumber == request.SerialNumber);
-                var containerClient = await azureStorageClient.GetBlobContainerClientAsync(request.ProductImageContainerPrefix);
+                var containerClient = await azureStorageClient.GetBlobContainerClientAsync("products");
                 var sasUris = new List<Uri>();
                 foreach (var image in images)
                 {
-                    var sasUri = await azureStorageClient.GetSasUriAsync(containerClient, request.TenantContainerPrefix, image.StorageId, image.FileName, BlobSasPermissions.Read);
+                    var sasUri = await azureStorageClient.GetSasUriAsync(containerClient, tenantInfo.Identifier, image.StorageId, image.FileName, BlobSasPermissions.Read);
                     sasUris.Add(sasUri);
                 }
 

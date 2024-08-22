@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Elysian.Domain.Seedwork;
 using System.ComponentModel.DataAnnotations;
+using Finbuckle.MultiTenant;
 
 namespace Elysian.Domain.Data
 {
@@ -105,7 +106,7 @@ namespace Elysian.Domain.Data
                     .HasForeignKey(b => b.UnitTypeId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                builder.ToTable("Product");
+                builder.ToTable("Product").IsMultiTenant();
             }
         }
     }

@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Finbuckle.MultiTenant;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Elysian.Domain.Data
@@ -20,7 +21,7 @@ namespace Elysian.Domain.Data
                 builder.Property(e => e.UserId).IsRequired();
                 builder.Property(e => e.State).IsRequired();
 
-                builder.ToTable("OAuthState");
+                builder.ToTable("OAuthState").IsMultiTenant();
             }
         }
     }
