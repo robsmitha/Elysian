@@ -9,5 +9,6 @@ namespace Elysian.Infrastructure.Settings
     public class AzureStorageSettings
     {
         public string AccountKey { get; set; }
+        public string ConnectionString { get; set; }
     }
 }

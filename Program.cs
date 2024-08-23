@@ -31,8 +31,11 @@ var host = new HostBuilder()
 var environment = host.Services.GetRequiredService<IHostEnvironment>();
 if (environment.IsDevelopment())
 {
-    var db = host.Services.GetRequiredService<ElysianContext>();
-    await db.Database.MigrateAsync();
+    var elysianContext = host.Services.GetRequiredService<ElysianContext>();
+    await elysianContext.Database.MigrateAsync();
+
+    var tenantContext = host.Services.GetRequiredService<TenantContext>();
+    await tenantContext.Database.MigrateAsync();
 }
 
 await host.RunAsync();

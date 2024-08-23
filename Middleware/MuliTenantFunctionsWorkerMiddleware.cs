@@ -20,9 +20,11 @@ namespace Elysian.Middleware
 
             var multiTenantContextAccessor = context.InstanceServices.GetRequiredService<IMultiTenantContextAccessor>();
             var multiTenantContextSetter = context.InstanceServices.GetRequiredService<IMultiTenantContextSetter>();
-            
+
+            var httpRequestData = await context.GetHttpRequestDataAsync();
+
             var value = (multiTenantContextSetter.MultiTenantContext = 
-                await context.InstanceServices.GetRequiredService<ITenantResolver>().ResolveAsync(context)) ?? throw new NotFoundException();
+                await context.InstanceServices.GetRequiredService<ITenantResolver>().ResolveAsync(httpRequestData)) ?? throw new NotFoundException();
 
             context.Items[typeof(IMultiTenantContext)] = value;
             await next(context);

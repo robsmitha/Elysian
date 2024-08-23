@@ -7,16 +7,10 @@ using Elysian.Infrastructure.Identity;
 using Elysian.Infrastructure.Services;
 using Elysian.Infrastructure.Settings;
 using Finbuckle.MultiTenant;
-using Finbuckle.MultiTenant.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Elysian.Infrastructure
 {
@@ -51,7 +45,7 @@ namespace Elysian.Infrastructure
 
             services.AddMultiTenant<ElysianTenantInfo>()
                 .WithEFCoreStore<TenantContext, ElysianTenantInfo>()
-                .WithHeaderStrategy();
+                .WithStrategy<FunctionsWorkerHeaderStrategy>(ServiceLifetime.Singleton, ["___tenant___"]);
 
             return services;
         }
@@ -130,12 +124,11 @@ namespace Elysian.Infrastructure
 
         private static IServiceCollection AddAzureStorageFeatures(this IServiceCollection services, IConfiguration configuration)
         {
-            return services.Configure<AzureStorageSettings>(configuration.GetSection("AzureStorage:Key"))
-                .AddSingleton(sp =>
+            return services.Configure<AzureStorageSettings>(configuration.GetSection("AzureStorage"))
+                .AddSingleton(serviceProvider =>
                 {
-                    var config = sp.GetService<IConfiguration>();
-                    var azureStorageConnectionString = configuration.GetConnectionString("AzureStorageConnectionString");
-                    return new BlobServiceClient(azureStorageConnectionString);
+                    var azureStorageSettings = serviceProvider.GetService<IOptions<AzureStorageSettings>>();
+                    return new BlobServiceClient(azureStorageSettings.Value.ConnectionString);
                 });
         }
     }
