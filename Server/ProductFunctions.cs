@@ -60,14 +60,14 @@ namespace Elysian
 
             logger.LogInformation("Get Product By Serial Number request [SerialNumber: {serialNumber}]", serialNumber);
 
-            var (product, sasUris) = await mediator.Send(new GetProductBySerialNumberQuery(serialNumber));
+            var (product, imageUris) = await mediator.Send(new GetProductBySerialNumberQuery(serialNumber));
 
             return product == null
                 ? throw new NotFoundException()
                 : await req.WriteJsonResponseAsync(new
                 {
                     product,
-                    sasUris
+                    imageUris
                 });
         }
 

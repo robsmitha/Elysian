@@ -14,6 +14,7 @@ namespace Elysian.Domain.Data
         public int PriceTypeId { get; set; }
         public string Name { get; set; }
         public string Description { get; set; }
+        public bool IsVariableCost { get; set; }
         public string CreatedByUserId { get; set; }
         public DateTime CreatedAt { get; set; }
         public string ModifiedByUserId { get; set; }

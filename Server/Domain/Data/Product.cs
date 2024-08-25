@@ -62,8 +62,8 @@ namespace Elysian.Domain.Data
 
         public int MerchantId { get; set; }
         public Merchant Merchant { get; set; }
-        public int ItemTypeId { get; set; }
-        public ProductType ItemType { get; set; }
+        public int ProductTypeId { get; set; }
+        public ProductType ProductType { get; set; }
         public int PriceTypeId { get; set; }
         public PriceType PriceType { get; set; }
         public int UnitTypeId { get; set; }
@@ -91,9 +91,9 @@ namespace Elysian.Domain.Data
                     .HasForeignKey(b => b.MerchantId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                builder.HasOne(b => b.ItemType)
+                builder.HasOne(b => b.ProductType)
                     .WithMany()
-                    .HasForeignKey(b => b.ItemTypeId)
+                    .HasForeignKey(b => b.ProductTypeId)
                     .OnDelete(DeleteBehavior.Cascade);
 
                 builder.HasOne(b => b.PriceType)

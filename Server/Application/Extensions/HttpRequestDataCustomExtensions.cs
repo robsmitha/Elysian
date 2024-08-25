@@ -40,7 +40,10 @@ namespace Elysian.Application.Extensions
         public static async Task<T> DeserializeBodyAsync<T>(this HttpRequestData req)
         {
             var body = await new StreamReader(req.Body).ReadToEndAsync();
-            return JsonSerializer.Deserialize<T>(body);
+            return JsonSerializer.Deserialize<T>(body, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            });
         }
 
         public static bool TryGetEnumValue<T>(this HttpRequestData req, string name, out T result) where T : struct

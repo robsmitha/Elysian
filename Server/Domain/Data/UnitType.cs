@@ -14,6 +14,11 @@ namespace Elysian.Domain.Data
         public int UnitTypeId { get; set; }
         public string Name { get; set; }
         public string Description { get; set; }
+
+        /// <summary>
+        /// Abbreviation (i.e. 4 each)
+        /// </summary>
+        public string PerUnit { get; set; }
         public string CreatedByUserId { get; set; }
         public DateTime CreatedAt { get; set; }
         public string ModifiedByUserId { get; set; }
