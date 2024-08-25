@@ -33,9 +33,6 @@ if (environment.IsDevelopment())
 {
     var elysianContext = host.Services.GetRequiredService<ElysianContext>();
     await elysianContext.Database.MigrateAsync();
-
-    var tenantContext = host.Services.GetRequiredService<TenantContext>();
-    await tenantContext.Database.MigrateAsync();
 }
 
 await host.RunAsync();

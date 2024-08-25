@@ -41,7 +41,7 @@ namespace Elysian.Infrastructure
                 => options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
             services.AddDbContext<TenantContext>(options
-                => options.UseSqlServer(configuration.GetConnectionString("TenantConnection")));
+                => options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
             services.AddMultiTenant<ElysianTenantInfo>()
                 .WithEFCoreStore<TenantContext, ElysianTenantInfo>()
