@@ -129,7 +129,8 @@ namespace Elysian.Infrastructure
                 {
                     var azureStorageSettings = serviceProvider.GetService<IOptions<AzureStorageSettings>>();
                     return new BlobServiceClient(azureStorageSettings.Value.ConnectionString);
-                });
+                })
+                .AddScoped<IAzureStorageClient, AzureStorageClient>();
         }
     }
 }

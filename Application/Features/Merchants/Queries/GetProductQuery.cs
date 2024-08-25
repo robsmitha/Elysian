@@ -19,11 +19,7 @@ namespace Elysian.Application.Features.Merchants.Queries
     {
         public int ProductId { get; set; } = productId;
 
-        public class Response
-        {
-            public Product Product { get; set; }
-            public List<ProductImage> Images { get; set; }
-        }
+        public record Response(Product Product, List<ProductImage> Images);
 
         public class Handler(ElysianContext context, IClaimsPrincipalAccessor claimsPrincipalAccessor,
             BlobServiceClient blobServiceClient, IAzureStorageClient azureStorageClient)
@@ -33,11 +29,7 @@ namespace Elysian.Application.Features.Merchants.Queries
             {
                 var (product, images) = await GetProductExtensionsAsync(c => c.ProductId == request.ProductId);
 
-                return new Response
-                {
-                    Product = product,
-                    Images = images
-                };
+                return new Response(product, images);
             }
 
             private async Task<(Product, List<ProductImage>)> GetProductExtensionsAsync(Expression<Func<Product, bool>> predicate)

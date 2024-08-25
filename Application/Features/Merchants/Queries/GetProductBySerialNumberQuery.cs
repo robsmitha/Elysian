@@ -15,11 +15,7 @@ namespace Elysian.Application.Features.Merchants.Queries
     {
         public string SerialNumber { get; set; } = serialNumber;
 
-        public class Response
-        {
-            public Product Product { get; set; }
-            public List<Uri> ImagesUris { get; set; }
-        }
+        public record Response(Product Product, List<Uri> ImagesUris);
 
         public class Handler(ElysianContext context, IClaimsPrincipalAccessor claimsPrincipalAccessor, IAzureStorageClient azureStorageClient,
             IMultiTenantContextAccessor<ElysianTenantInfo> multiTenantContextAccessor) 
@@ -27,6 +23,11 @@ namespace Elysian.Application.Features.Merchants.Queries
         {
             public async Task<Response> Handle(GetProductBySerialNumberQuery request, CancellationToken cancellationToken)
             {
+                if (string.IsNullOrEmpty(request.SerialNumber))
+                {
+                    throw new CustomValidationException();
+                }
+
                 var tenantInfo = multiTenantContextAccessor.MultiTenantContext.TenantInfo;
                 var (product, images) = await GetProductExtensionsAsync(c => c.SerialNumber == request.SerialNumber);
                 var containerClient = await azureStorageClient.GetBlobContainerClientAsync("products");
@@ -37,11 +38,7 @@ namespace Elysian.Application.Features.Merchants.Queries
                     sasUris.Add(sasUri);
                 }
 
-                return new Response
-                {
-                    Product = product,
-                    ImagesUris = sasUris
-                };
+                return new Response(product, sasUris);
             }
 
             private async Task<(Product, List<ProductImage>)> GetProductExtensionsAsync(Expression<Func<Product, bool>> predicate)
