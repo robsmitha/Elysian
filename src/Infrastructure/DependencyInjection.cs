@@ -99,7 +99,7 @@ namespace Elysian.Infrastructure
 
         public static IServiceCollection AddAzureStorageFeatures(this IServiceCollection services, IConfiguration configuration)
         {
-            return services.Configure<AzureStorageSettings>(configuration.GetSection("AzureStorage"))
+            return services.Configure<AzureStorageSettings>(configuration.GetSection(nameof(AzureStorageSettings)))
                 .AddSingleton(serviceProvider =>
                 {
                     var azureStorageSettings = serviceProvider.GetService<IOptions<AzureStorageSettings>>();

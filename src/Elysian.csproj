@@ -30,9 +30,9 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.2" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="NJsonSchema" Version="11.0.0" GeneratePathProperty="true" PrivateAssets="all" />
-    <PackageReference Include="NJsonSchema.Annotations" Version="11.0.0" GeneratePathProperty="true" PrivateAssets="all" />
-    <PackageReference Include="NJsonSchema.CodeGeneration.CSharp" Version="11.0.0" GeneratePathProperty="true" PrivateAssets="all" />
+    <PackageReference Include="NJsonSchema" Version="11.0.0" />
+    <PackageReference Include="NJsonSchema.Annotations" Version="11.0.0" />
+    <PackageReference Include="NJsonSchema.CodeGeneration.CSharp" Version="11.0.0" />
     <PackageReference Include="NJsonSchema.CodeGeneration.TypeScript" Version="11.0.0" />
   </ItemGroup>
 </Project>
