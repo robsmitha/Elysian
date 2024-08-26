@@ -9,6 +9,7 @@ jobs:
         packages: write
         contents: read
     timeout-minutes: 15
+    environment: Production
     steps:
     - name: 'Checkout GitHub Action'
       uses: actions/checkout@v4
