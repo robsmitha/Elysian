@@ -1,12 +1,13 @@
 ﻿using Azure.Storage.Blobs;
 using CapitolSharp.Congress;
-using Elysian.Application.Features.MultiTenant;
 using Elysian.Application.Interfaces;
+using Elysian.Domain.Data;
 using Elysian.Infrastructure.Context;
 using Elysian.Infrastructure.Identity;
 using Elysian.Infrastructure.Services;
 using Elysian.Infrastructure.Settings;
 using Finbuckle.MultiTenant;
+using Finbuckle.MultiTenant.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,46 +17,23 @@ namespace Elysian.Infrastructure
 {
     public static class DependencyInjection
     {
-        public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddElysianFeatures<TStrategy>(this IServiceCollection services, string connectionString, string tenantHeader = "___tenant___")
+            where TStrategy : IMultiTenantStrategy
         {
-            services.AddAuthenticationFeatures();
+            services.AddSingleton<IClaimsPrincipalAccessor, ClaimsPrincipalAccessor>();
 
-            services.AddContentManagementFeatures();
+            services.AddDbContext<ElysianContext>(options => options.UseSqlServer(connectionString));
 
-            services.AddCodeFeatures();
-
-            services.AddCongressFeatures(configuration);
-
-            services.AddFinancialFeatures(configuration);
-
-            services.AddAzureStorageFeatures(configuration);
-
-            services.AddMultiTenantFeatures(configuration);
-
-            return services;
-        }
-
-        private static IServiceCollection AddMultiTenantFeatures(this IServiceCollection services, IConfiguration configuration)
-        {
-            services.AddDbContext<ElysianContext>(options 
-                => options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
-
-            services.AddDbContext<TenantContext>(options
-                => options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+            services.AddDbContext<TenantContext>(options => options.UseSqlServer(connectionString));
 
             services.AddMultiTenant<ElysianTenantInfo>()
                 .WithEFCoreStore<TenantContext, ElysianTenantInfo>()
-                .WithStrategy<FunctionsWorkerHeaderStrategy>(ServiceLifetime.Singleton, ["___tenant___"]);
+                .WithStrategy<TStrategy>(ServiceLifetime.Singleton, [tenantHeader]);
 
             return services;
         }
 
-        private static IServiceCollection AddAuthenticationFeatures(this IServiceCollection services)
-        {
-            return services.AddSingleton<IClaimsPrincipalAccessor, ClaimsPrincipalAccessor>();
-        }
-
-        private static IServiceCollection AddContentManagementFeatures(this IServiceCollection services)
+        public static IServiceCollection AddContentManagementFeatures(this IServiceCollection services)
         {
             services.AddHttpClient<IWordPressService, WordPressService>((serviceProvider, httpClient) =>
             {
@@ -65,7 +43,7 @@ namespace Elysian.Infrastructure
             return services;
         }
 
-        private static IServiceCollection AddCodeFeatures(this IServiceCollection services)
+        public static IServiceCollection AddCodeFeatures(this IServiceCollection services)
         {
             services.AddHttpClient("GitHubApi", (serviceProvider, httpClient) =>
             {
@@ -89,7 +67,7 @@ namespace Elysian.Infrastructure
             return services;
         }
 
-        private static IServiceCollection AddCongressFeatures(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddCongressFeatures(this IServiceCollection services, IConfiguration configuration)
         {
             services.Configure<CongressApiSettings>(config =>
             {
@@ -106,7 +84,7 @@ namespace Elysian.Infrastructure
             return services;
         }
 
-        private static IServiceCollection AddFinancialFeatures(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddFinancialFeatures(this IServiceCollection services, IConfiguration configuration)
         {
             services.Configure<PlaidSettings>(configuration.GetSection(nameof(PlaidSettings)));
 
@@ -122,7 +100,7 @@ namespace Elysian.Infrastructure
             return services;
         }
 
-        private static IServiceCollection AddAzureStorageFeatures(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddAzureStorageFeatures(this IServiceCollection services, IConfiguration configuration)
         {
             return services.Configure<AzureStorageSettings>(configuration.GetSection("AzureStorage"))
                 .AddSingleton(serviceProvider =>

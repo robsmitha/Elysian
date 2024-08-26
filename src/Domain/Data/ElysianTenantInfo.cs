@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Elysian.Application.Features.MultiTenant
+namespace Elysian.Domain.Data
 {
     public record ElysianTenantInfo : ITenantInfo
     {

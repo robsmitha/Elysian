@@ -1,5 +1,4 @@
 ﻿using Elysian.Application.Exceptions;
-using Elysian.Application.Features.MultiTenant;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Constants;
 using Elysian.Domain.Data;

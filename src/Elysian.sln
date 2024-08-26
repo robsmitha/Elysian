@@ -3,7 +3,15 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.9.34607.119
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Elysian", "Elysian.csproj", "{7CFDAAF7-CC53-4E16-9927-0B12CF024374}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Elysian", "Elysian.csproj", "{7CFDAAF7-CC53-4E16-9927-0B12CF024374}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{B4BB1F14-FC4E-4ECC-975F-17080BEB4697}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "build", "build", "{C9E5D494-CA8D-41FC-BA0A-9FF6786AF06D}"
+	ProjectSection(SolutionItems) = preProject
+		..\.github\workflows\ci.yml = ..\.github\workflows\ci.yml
+		..\.github\workflows\release.yml = ..\.github\workflows\release.yml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -18,6 +26,9 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{7CFDAAF7-CC53-4E16-9927-0B12CF024374} = {B4BB1F14-FC4E-4ECC-975F-17080BEB4697}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {40CBFE22-20FC-4E63-8EE7-C5A696F473EF}

@@ -1,6 +1,5 @@
 ﻿using Azure.Storage.Sas;
 using Elysian.Application.Exceptions;
-using Elysian.Application.Features.MultiTenant;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
 using Elysian.Infrastructure.Context;

@@ -1,5 +1,4 @@
-﻿using Elysian.Application.Features.MultiTenant;
-using Elysian.Domain.Data;
+﻿using Elysian.Domain.Data;
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using Finbuckle.MultiTenant.EntityFrameworkCore;

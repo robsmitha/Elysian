@@ -1,4 +1,4 @@
-﻿using Elysian.Application.Features.MultiTenant;
+﻿using Elysian.Domain.Data;
 using Finbuckle.MultiTenant.EntityFrameworkCore.Stores.EFCoreStore;
 using Microsoft.EntityFrameworkCore;
 using System;
