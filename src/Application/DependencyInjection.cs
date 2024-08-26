@@ -13,8 +13,10 @@ namespace Elysian.Application
 {
     public static class DependencyInjection
     {
-        public static IServiceCollection AddApplication(this IServiceCollection services, Assembly assembly)
+        public static IServiceCollection AddApplication(this IServiceCollection services)
         {
+            var assembly = Assembly.GetExecutingAssembly();
+
             services.AddAutoMapper(cfg =>
             {
                 cfg.AddMaps(assembly);
