@@ -2,22 +2,24 @@
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Responses.GitHub;
 using Elysian.Domain.Security;
-using Microsoft.Extensions.Configuration;
+using Elysian.Infrastructure.Settings;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using System.Text;
 
 namespace Elysian.Infrastructure.Services
 {
-    public class GitHubService(IHttpClientFactory httpClientFactory, IConfiguration configuration) : IGitHubService
+    public class GitHubService(IHttpClientFactory httpClientFactory, IOptions<GitHubSettings> options) : IGitHubService
     {
+        private readonly GitHubSettings gitHubSettings = options.Value;
         public async Task<GitHubOAuthUrl> GetGitHubOAuthUrlAsync(string state)
         {
             var urlBuilder = new StringBuilder();
             urlBuilder.Append("https://github.com/login/oauth/authorize?");
             urlBuilder.Append($"allow_signup=true");
-            urlBuilder.Append($"&client_id={configuration.GetValue<string>("GitHub:ClientId")}");
-            urlBuilder.Append($"&redirect_uri={configuration.GetValue<string>("GitHub:SuccessRedirectUri")}");
-            urlBuilder.Append($"&state={OAuthStateEncryptor.ComputeHash(configuration.GetValue<string>("SecretKey"), state)}");
+            urlBuilder.Append($"&client_id={gitHubSettings.ClientId}");
+            urlBuilder.Append($"&redirect_uri={gitHubSettings.SuccessRedirectUri}");
+            urlBuilder.Append($"&state={OAuthStateEncryptor.ComputeHash(gitHubSettings.StateSecretKey, state)}");
             return new GitHubOAuthUrl(urlBuilder.ToString());
         }
 
@@ -26,8 +28,8 @@ namespace Elysian.Infrastructure.Services
             var content = new StringContent(JsonConvert.SerializeObject(new
             {
                 requestAccessToken?.code,
-                client_id = configuration.GetValue<string>("GitHub:ClientId"),
-                client_secret = configuration.GetValue<string>("GitHub:Secret")
+                client_id = gitHubSettings.ClientId,
+                client_secret = gitHubSettings.Secret
             }), Encoding.UTF8, "application/json");
 
             var client = httpClientFactory.CreateClient("GitHubOAuth");

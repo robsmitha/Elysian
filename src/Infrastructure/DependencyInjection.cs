@@ -17,42 +17,42 @@ namespace Elysian.Infrastructure
 {
     public static class DependencyInjection
     {
-        public static IServiceCollection AddElysianFeatures<TStrategy>(this IServiceCollection services, string connectionString, string tenantHeader = "___tenant___")
+        public static IServiceCollection AddElysianFeatures<TStrategy>(this IServiceCollection services, IConfiguration configuration)
             where TStrategy : IMultiTenantStrategy
         {
             services.AddSingleton<IClaimsPrincipalAccessor, ClaimsPrincipalAccessor>();
 
-            services.AddDbContext<ElysianContext>(options => options.UseSqlServer(connectionString));
+            services.AddDbContext<ElysianContext>(options => options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
-            services.AddDbContext<TenantContext>(options => options.UseSqlServer(connectionString));
+            services.AddDbContext<TenantContext>(options => options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
             services.AddMultiTenant<ElysianTenantInfo>()
                 .WithEFCoreStore<TenantContext, ElysianTenantInfo>()
-                .WithStrategy<TStrategy>(ServiceLifetime.Singleton, [tenantHeader]);
+                .WithStrategy<TStrategy>(ServiceLifetime.Singleton, ["___tenant___"]);
 
             return services;
         }
 
-        public static IServiceCollection AddContentManagementFeatures(this IServiceCollection services)
+        public static IServiceCollection AddContentManagementFeatures(this IServiceCollection services, IConfiguration configuration)
         {
-            services.AddHttpClient<IWordPressService, WordPressService>((serviceProvider, httpClient) =>
+            services.Configure<ContentManagementSettings>(configuration.GetSection(nameof(ContentManagementSettings)))
+                .AddHttpClient<IWordPressService, WordPressService>((serviceProvider, httpClient) =>
             {
-                var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-                httpClient.BaseAddress = configuration.GetValue<Uri>("WordPressCmsUri");
+                var options = serviceProvider.GetRequiredService<IOptions<ContentManagementSettings>>();
+                httpClient.BaseAddress = options.Value.CmsUri;
             });
             return services;
         }
 
-        public static IServiceCollection AddCodeFeatures(this IServiceCollection services)
+        public static IServiceCollection AddCodeFeatures(this IServiceCollection services, IConfiguration configuration)
         {
-            services.AddHttpClient("GitHubApi", (serviceProvider, httpClient) =>
+            services.Configure<GitHubSettings>(configuration.GetSection(nameof(GitHubSettings)))
+                .AddHttpClient("GitHubApi", (serviceProvider, httpClient) =>
             {
+                var options = serviceProvider.GetRequiredService<IOptions<GitHubSettings>>();
                 httpClient.BaseAddress = new Uri("https://api.github.com");
-
-                var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-                var accessToken = configuration.GetValue<string>("DefaultAccessTokens:GitHub");
-                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken}");
-                httpClient.DefaultRequestHeaders.Add("User-Agent", "robsmitha.com");
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {options.Value.DefaultAccessToken}");
+                httpClient.DefaultRequestHeaders.Add("User-Agent", options.Value.UserAgent);
                 httpClient.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
             });
             
@@ -69,10 +69,7 @@ namespace Elysian.Infrastructure
 
         public static IServiceCollection AddCongressFeatures(this IServiceCollection services, IConfiguration configuration)
         {
-            services.Configure<CongressApiSettings>(config =>
-            {
-                config.ApiKey = configuration.GetValue<string>("DefaultAccessTokens:CongressGov");
-            });
+            services.Configure<CongressApiSettings>(configuration.GetSection(nameof(CongressApiSettings)));
 
             services.AddTransient<CapitolSharpCongress>(serviceProvider =>
             {
