@@ -4,6 +4,7 @@ using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
 using Elysian.Infrastructure.Context;
 using Finbuckle.MultiTenant.Abstractions;
+using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
@@ -14,6 +15,26 @@ namespace Elysian.Application.Features.Merchants.Queries
     {
         public string SerialNumber { get; set; } = serialNumber;
 
+        public class Validator : AbstractValidator<GetProductBySerialNumberQuery>
+        {
+            private readonly ElysianContext _context;
+            public Validator(ElysianContext context)
+            {
+                _context = context;
+
+                RuleFor(v => v.SerialNumber)
+                    .NotEmpty()
+                    .MustAsync(HaveValidSerialNumber)
+                        .WithMessage("No records found for the provided serial number. Please verify the number and try again.");
+            }
+
+            public async Task<bool> HaveValidSerialNumber(string serialNumber,
+                CancellationToken cancellationToken)
+            {
+                return await _context.Products.AnyAsync(p => p.SerialNumber == serialNumber && !p.IsDeleted, cancellationToken: cancellationToken);
+            }
+        }
+
         public record Response(Product Product, List<Uri> ImagesUris);
 
         public class Handler(ElysianContext context, IClaimsPrincipalAccessor claimsPrincipalAccessor, IAzureStorageClient azureStorageClient,
@@ -22,11 +43,6 @@ namespace Elysian.Application.Features.Merchants.Queries
         {
             public async Task<Response> Handle(GetProductBySerialNumberQuery request, CancellationToken cancellationToken)
             {
-                if (string.IsNullOrEmpty(request.SerialNumber))
-                {
-                    throw new CustomValidationException();
-                }
-
                 var tenantInfo = multiTenantContextAccessor.MultiTenantContext.TenantInfo;
                 var (product, images) = await GetProductExtensionsAsync(c => c.SerialNumber == request.SerialNumber);
                 var containerClient = await azureStorageClient.GetBlobContainerClientAsync("products");

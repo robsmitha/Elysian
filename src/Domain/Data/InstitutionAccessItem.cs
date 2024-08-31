@@ -21,17 +21,19 @@ namespace Elysian.Domain.Data
         {
             public void Configure(EntityTypeBuilder<InstitutionAccessItem> builder)
             {
+                builder.IsMultiTenant();
+
                 builder.HasKey(k => k.InstitutionAccessItemId);
                 builder.Property(e => e.UserId).IsRequired();
                 builder.Property(e => e.AccessToken).IsRequired();
                 builder.Property(e => e.ItemId).IsRequired();
                 builder.Property(e => e.InstitutionId).IsRequired();
 
-                builder.HasIndex(e => new { e.InstitutionId, e.UserId })
+                builder.HasIndex(["InstitutionId", "UserId", "TenantId"])
                     .IsUnique()
                     .HasDatabaseName("AK_InstitutionAccessItem_InstitutionId_UserId");
 
-                builder.ToTable("InstitutionAccessItem").IsMultiTenant();
+                builder.ToTable("InstitutionAccessItem");
             }
         }
     }

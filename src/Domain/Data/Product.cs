@@ -75,10 +75,11 @@ namespace Elysian.Domain.Data
             public override void Configure(EntityTypeBuilder<Product> builder)
             {
                 base.Configure(builder);
+                builder.IsMultiTenant();
 
                 builder.HasKey(k => k.ProductId);
                 builder.Property(e => e.SerialNumber).IsRequired();
-                builder.HasIndex(e => e.SerialNumber)
+                builder.HasIndex(["SerialNumber", "TenantId"])
                     .IsUnique()
                     .HasDatabaseName("AK_Product_SerialNumber")
                     .HasFilter($"[{nameof(IsDeleted)}] = 0");
@@ -106,7 +107,7 @@ namespace Elysian.Domain.Data
                     .HasForeignKey(b => b.UnitTypeId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                builder.ToTable("Product").IsMultiTenant();
+                builder.ToTable("Product");
             }
         }
     }

@@ -38,8 +38,12 @@ namespace Elysian.Infrastructure
             services.Configure<ContentManagementSettings>(configuration.GetSection(nameof(ContentManagementSettings)))
                 .AddHttpClient<IWordPressService, WordPressService>((serviceProvider, httpClient) =>
             {
+                var multiTenantContextAccessor = serviceProvider.GetRequiredService<IMultiTenantContextAccessor<ElysianTenantInfo>>();
                 var options = serviceProvider.GetRequiredService<IOptions<ContentManagementSettings>>();
-                httpClient.BaseAddress = options.Value.CmsUri;
+                
+                httpClient.BaseAddress = string.IsNullOrEmpty(multiTenantContextAccessor.MultiTenantContext.TenantInfo?.CmsUrl)
+                    ? options.Value.CmsUri
+                    : new Uri(multiTenantContextAccessor.MultiTenantContext.TenantInfo.CmsUrl);
             });
             return services;
         }

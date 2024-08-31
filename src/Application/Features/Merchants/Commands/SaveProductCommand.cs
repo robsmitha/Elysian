@@ -4,6 +4,7 @@ using Elysian.Domain.Constants;
 using Elysian.Domain.Data;
 using Elysian.Infrastructure.Context;
 using Finbuckle.MultiTenant.Abstractions;
+using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,25 +21,55 @@ namespace Elysian.Application.Features.Merchants.Commands
     {
         public SaveProductRequest SaveProductRequest = saveProductRequest;
 
+
+        public class Validator : AbstractValidator<SaveProductCommand>
+        {
+            private readonly ElysianContext _context;
+            public Validator(ElysianContext context)
+            {
+                _context = context;
+
+                RuleFor(v => v.SaveProductRequest)
+                    .NotEmpty()
+                    .MustAsync(BeUniqueSerialNumber)
+                        .WithMessage("The serial number must be unique. The provided serial number already exists in the system");
+
+                RuleFor(v => v.SaveProductRequest.ProductId)
+                    .NotEmpty()
+                    .MustAsync(BeValidProductId)
+                        .WithMessage("No matching record found. The ID may be incorrect, or the record has been deleted.");
+            }
+
+            public async Task<bool> BeUniqueSerialNumber(SaveProductRequest saveProductRequest,
+                CancellationToken cancellationToken)
+            {
+                var query = _context.Products.Where(c => !c.IsDeleted && c.SerialNumber == saveProductRequest.SerialNumber);
+
+                return saveProductRequest.ProductId.HasValue
+                    ? await query.AnyAsync(c => c.ProductId != saveProductRequest.ProductId, cancellationToken)
+                    : await query.AnyAsync(cancellationToken);
+
+            }
+
+            public async Task<bool> BeValidProductId(int? productId,
+                CancellationToken cancellationToken)
+            {
+                return !productId.HasValue || await _context.Products.AnyAsync(p => p.ProductId == productId && !p.IsDeleted, cancellationToken: cancellationToken);
+            }
+        }
+
         public class Handler(ElysianContext context, IClaimsPrincipalAccessor claimsPrincipalAccessor,
             IMultiTenantContextAccessor<ElysianTenantInfo> muliTenantContextAccessor) : IRequestHandler<SaveProductCommand, Product>
         {
             public async Task<Product> Handle(SaveProductCommand request, CancellationToken cancellationToken)
             {
-                // TODO: validator
-                if (!request.SaveProductRequest.ProductId.HasValue && await context.Products.AnyAsync(c => !c.IsDeleted && c.SerialNumber == request.SaveProductRequest.SerialNumber))
+                if (!claimsPrincipalAccessor.IsAuthenticated)
                 {
-                    throw new CustomValidationException();
-                }
-
-                // TODO: validator
-                if (request.SaveProductRequest.ProductId.HasValue && await context.Products.AnyAsync(c => !c.IsDeleted && c.SerialNumber == request.SaveProductRequest.SerialNumber && c.ProductId != request.SaveProductRequest.ProductId))
-                {
-                    throw new CustomValidationException();
+                    throw new ForbiddenAccessException();
                 }
 
                 var product = request.SaveProductRequest.ProductId.HasValue
-                    ? await context.Products.SingleOrDefaultAsync(c => c.ProductId == request.SaveProductRequest.ProductId)
+                    ? await context.Products.SingleOrDefaultAsync(c => c.ProductId == request.SaveProductRequest.ProductId && !c.IsDeleted)
                     : null;
 
                 if (product == null)

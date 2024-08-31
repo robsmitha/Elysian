@@ -12,5 +12,6 @@ namespace Elysian.Domain.Data
         public string? Id { get; set; }
         public string? Identifier { get; set; }
         public string? Name { get; set; }
+        public string? CmsUrl { get; set; }
     }
 }
