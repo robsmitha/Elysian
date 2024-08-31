@@ -1,9 +1,12 @@
 ﻿using Elysian.Application.Features.Financial.Models;
 using Elysian.Application.Interfaces;
+using Elysian.Domain.Security;
 using MediatR;
 
 namespace Elysian.Application.Features.Financial.Commands
 {
+
+    [Authorize]
     public class SetTransactionCategoryCommand(string transactionId, int categoryId, int budgetId) : IRequest<TransactionCategoryModel>
     {
         private string TransactionId { get; set; } = transactionId;

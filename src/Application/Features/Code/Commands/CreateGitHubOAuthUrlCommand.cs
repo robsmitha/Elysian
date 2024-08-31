@@ -2,6 +2,7 @@
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Constants;
 using Elysian.Domain.Data;
+using Elysian.Domain.Security;
 using Elysian.Infrastructure.Context;
 using Elysian.Infrastructure.Identity;
 using MediatR;
@@ -13,6 +14,7 @@ using System.Threading.Tasks;
 
 namespace Elysian.Application.Features.Code.Commands
 {
+    [Authorize]
     public record CreateGitHubOAuthUrlCommand : IRequest<GitHubOAuthUrl>;
     public class CreateGitHubOAuthUrlCommandHandler(ElysianContext context, IGitHubService gitHubService, IClaimsPrincipalAccessor claimsPrincipalAccessor) : IRequestHandler<CreateGitHubOAuthUrlCommand, GitHubOAuthUrl>
     {

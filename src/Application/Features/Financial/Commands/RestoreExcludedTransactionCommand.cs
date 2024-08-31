@@ -1,8 +1,10 @@
 ﻿using Elysian.Application.Interfaces;
+using Elysian.Domain.Security;
 using MediatR;
 
 namespace Elysian.Application.Features.Financial.Commands
 {
+    [Authorize]
     public class RestoreExcludedTransactionCommand(string transactionId, int budgetId) : IRequest<bool>
     {
         private string TransactionId { get; set; } = transactionId;

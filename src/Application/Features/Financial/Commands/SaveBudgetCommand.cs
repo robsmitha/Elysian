@@ -1,5 +1,6 @@
 ﻿using Elysian.Application.Features.Financial.Models;
 using Elysian.Application.Interfaces;
+using Elysian.Domain.Security;
 using Elysian.Infrastructure.Context;
 using FluentValidation;
 using MediatR;
@@ -7,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Elysian.Application.Features.Financial.Commands
 {
+    [Authorize]
     public class SaveBudgetCommand(BudgetModel budget) : IRequest<BudgetModel>
     {
         public BudgetModel Budget { get; set; } = budget;

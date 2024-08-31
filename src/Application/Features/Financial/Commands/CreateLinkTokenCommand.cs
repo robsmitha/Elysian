@@ -1,10 +1,12 @@
 ﻿using Elysian.Application.Features.Financial.Models;
 using Elysian.Application.Interfaces;
+using Elysian.Domain.Security;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace Elysian.Application.Features.Financial.Commands
 {
+    [Authorize]
     public class CreateLinkTokenCommand(string accessToken) : IRequest<LinkTokenModel>
     {
         public string? AccessToken { get; set; } = accessToken;

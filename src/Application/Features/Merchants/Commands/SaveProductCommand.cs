@@ -3,6 +3,7 @@ using Elysian.Application.Features.Merchants.Models;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Constants;
 using Elysian.Domain.Data;
+using Elysian.Domain.Security;
 using Elysian.Infrastructure.Context;
 using Finbuckle.MultiTenant.Abstractions;
 using FluentValidation;
@@ -11,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Elysian.Application.Features.Merchants.Commands
 {
+    [Authorize]
     public record SaveProductCommand(SaveProductRequest SaveProductRequest) : IRequest<Product>;
 
     public class SaveProductCommandValidator : AbstractValidator<SaveProductCommand>

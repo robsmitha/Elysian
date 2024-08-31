@@ -1,10 +1,13 @@
 ﻿using Elysian.Application.Features.Financial.Models;
 using Elysian.Application.Interfaces;
+using Elysian.Domain.Security;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace Elysian.Application.Features.Financial.Commands
 {
+
+    [Authorize]
     public class UpdateBudgetCategoryCommand(int budgetId, string categoryName, decimal estimate) : IRequest<BudgetCategoryModel>
     {
         public int BudgetId { get; } = budgetId;

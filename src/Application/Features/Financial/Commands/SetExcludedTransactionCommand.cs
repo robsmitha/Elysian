@@ -1,9 +1,11 @@
 ﻿using Elysian.Application.Features.Financial.Models;
 using Elysian.Application.Interfaces;
+using Elysian.Domain.Security;
 using MediatR;
 
 namespace Elysian.Application.Features.Financial.Commands
 {
+    [Authorize]
     public class SetExcludedTransactionCommand(string transactionId, int budgetId) : IRequest<BudgetExcludedTransactionModel>
     {
         private string TransactionId { get; set; } = transactionId;

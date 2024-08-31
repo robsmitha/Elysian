@@ -3,6 +3,7 @@ using Azure.Storage.Sas;
 using Elysian.Application.Exceptions;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
+using Elysian.Domain.Security;
 using Elysian.Infrastructure.Context;
 using FluentValidation;
 using MediatR;
@@ -16,6 +17,7 @@ using System.Threading.Tasks;
 
 namespace Elysian.Application.Features.Merchants.Queries
 {
+    [Authorize]
     public class GetProductQuery(int productId) : IRequest<GetProductQuery.Response>
     {
         public int ProductId { get; set; } = productId;
@@ -47,11 +49,6 @@ namespace Elysian.Application.Features.Merchants.Queries
         {
             public async Task<Response> Handle(GetProductQuery request, CancellationToken cancellationToken)
             {
-                if (!claimsPrincipalAccessor.IsAuthenticated)
-                {
-                    throw new ForbiddenAccessException();
-                }
-
                 var (product, images) = await GetProductExtensionsAsync(c => c.ProductId == request.ProductId);
 
                 return new Response(product, images);

@@ -2,10 +2,12 @@
 using Elysian.Application.Features.Financial.Models;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Constants;
+using Elysian.Domain.Security;
 using MediatR;
 
 namespace Elysian.Application.Features.Financial.Queries
 {
+    [Authorize]
     public record GetUserAccessItemsQuery : IRequest<List<InstitutionAccessItemModel>>;
 
     public class GetUserAccessItemsQueryHandler(IFinancialService financialService, IAccessTokenService accessTokenService, IClaimsPrincipalAccessor claimsPrincipalAccessor)

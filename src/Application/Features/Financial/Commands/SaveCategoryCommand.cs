@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using Elysian.Application.Features.Financial.Models;
 using Elysian.Application.Interfaces;
+using Elysian.Domain.Security;
 using Elysian.Infrastructure.Context;
 using FluentValidation;
 using MediatR;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Elysian.Application.Features.Financial.Commands
 {
+    [Authorize]
     public class SaveCategoryCommand(FinancialCategoryModel category, int budgetId, decimal? estimate = null) : IRequest<FinancialCategoryModel>
     {
         public int BudgetId { get; set; } = budgetId;

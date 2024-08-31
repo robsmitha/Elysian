@@ -1,10 +1,12 @@
 ﻿using Elysian.Application.Features.Financial.Models;
 using Elysian.Application.Interfaces;
+using Elysian.Domain.Security;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace Elysian.Application.Features.Financial.Commands
 {
+    [Authorize]
     public class SetAccessTokenCommand(string publicToken) : IRequest<InstitutionAccessTokenModel>
     {
         public string PublicToken { get; set; } = publicToken;
