@@ -13,25 +13,23 @@ using System.Threading.Tasks;
 
 namespace Elysian.Application.Features.Code.Commands
 {
-    public class CreateGitHubOAuthUrlCommand : IRequest<GitHubOAuthUrl>
+    public record CreateGitHubOAuthUrlCommand : IRequest<GitHubOAuthUrl>;
+    public class CreateGitHubOAuthUrlCommandHandler(ElysianContext context, IGitHubService gitHubService, IClaimsPrincipalAccessor claimsPrincipalAccessor) : IRequestHandler<CreateGitHubOAuthUrlCommand, GitHubOAuthUrl>
     {
-        public class Handler(ElysianContext context, IGitHubService gitHubService, IClaimsPrincipalAccessor claimsPrincipalAccessor) : IRequestHandler<CreateGitHubOAuthUrlCommand, GitHubOAuthUrl>
+        public async Task<GitHubOAuthUrl> Handle(CreateGitHubOAuthUrlCommand request, CancellationToken cancellationToken)
         {
-            public async Task<GitHubOAuthUrl> Handle(CreateGitHubOAuthUrlCommand request, CancellationToken cancellationToken)
+            var oAuthState = new OAuthState
             {
-                var oAuthState = new OAuthState
-                {
-                    State = Guid.NewGuid().ToString(),
-                    OAuthProvider = OAuthProviders.GitHub,
-                    UserId = claimsPrincipalAccessor.UserId,
-                    CreatedAt = DateTime.UtcNow
-                };
+                State = Guid.NewGuid().ToString(),
+                OAuthProvider = OAuthProviders.GitHub,
+                UserId = claimsPrincipalAccessor.UserId,
+                CreatedAt = DateTime.UtcNow
+            };
 
-                await context.AddAsync(oAuthState);
-                await context.SaveChangesAsync();
+            await context.AddAsync(oAuthState);
+            await context.SaveChangesAsync();
 
-                return await gitHubService.GetGitHubOAuthUrlAsync(oAuthState.State);
-            }
+            return await gitHubService.GetGitHubOAuthUrlAsync(oAuthState.State);
         }
     }
 }

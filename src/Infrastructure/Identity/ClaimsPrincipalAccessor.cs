@@ -27,6 +27,11 @@ namespace Elysian.Infrastructure.Identity
 
         public string? UserId => Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? Guid.Empty.ToString();
         public bool IsAuthenticated => Principal?.Identity?.IsAuthenticated ?? false;
+        
+        public Dictionary<string, string> Claims => Principal?.Claims
+            .GroupBy(c => c.Type)
+            .ToDictionary(g => g.Key, g => string.Join(",", g.Select(c => c.Value)))
+            ?? [];
 
         private class ContextHolder
         {

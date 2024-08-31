@@ -4,20 +4,12 @@ using MediatR;
 
 namespace Elysian.Application.Features.Financial.Queries
 {
-    public class GetCategoriesQuery : IRequest<List<FinancialCategoryModel>>
+    public record GetCategoriesQuery : IRequest<List<FinancialCategoryModel>>;
+    public class Handler(ICategoryService categoryService) : IRequestHandler<GetCategoriesQuery, List<FinancialCategoryModel>>
     {
-        public class Handler : IRequestHandler<GetCategoriesQuery, List<FinancialCategoryModel>>
+        public async Task<List<FinancialCategoryModel>> Handle(GetCategoriesQuery request, CancellationToken cancellationToken)
         {
-            private readonly ICategoryService _categoryService;
-
-            public Handler(ICategoryService categoryService)
-            {
-                _categoryService = categoryService;
-            }
-            public async Task<List<FinancialCategoryModel>> Handle(GetCategoriesQuery request, CancellationToken cancellationToken)
-            {
-                return await _categoryService.GetCategoriesAsync();
-            }
+            return await categoryService.GetCategoriesAsync();
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using MediatR.Pipeline;
+﻿using Elysian.Application.Interfaces;
+using MediatR.Pipeline;
 using Microsoft.Extensions.Logging;
 using System.Threading;
 using System.Threading.Tasks;
@@ -6,7 +7,7 @@ using System.Threading.Tasks;
 namespace Elysian.Application.Behaviors
 {
     public class LoggingBehavior<TRequest>(
-        ILogger<TRequest> logger)
+        ILogger<TRequest> logger, IClaimsPrincipalAccessor claimsPrincipalAccessor)
        : IRequestPreProcessor<TRequest>
         where TRequest : notnull
     {
@@ -17,7 +18,10 @@ namespace Elysian.Application.Behaviors
             CancellationToken cancellationToken)
         {
             var requestName = typeof(TRequest).Name;
-            _logger.LogInformation($"Application Request: {requestName} {request}");
+            var user = claimsPrincipalAccessor.IsAuthenticated ? claimsPrincipalAccessor.UserId : "Anonymous";
+            
+            _logger.LogInformation($"Application Request [User: {user}, Claims: {claimsPrincipalAccessor.Claims}, RequestName: {requestName}, Payload: {request}]");
+            
             await Task.FromResult(0);
         }
     }
