@@ -37,8 +37,8 @@ namespace Elysian.Application.Features.Merchants.Commands
             var query = _context.Products.Where(c => !c.IsDeleted && c.SerialNumber == saveProductRequest.SerialNumber);
 
             return saveProductRequest.ProductId.HasValue
-                ? await query.AnyAsync(c => c.ProductId != saveProductRequest.ProductId, cancellationToken)
-                : await query.AnyAsync(cancellationToken);
+                ? !await query.AnyAsync(c => c.ProductId != saveProductRequest.ProductId, cancellationToken)
+                : !await query.AnyAsync(cancellationToken);
 
         }
 
