@@ -32,9 +32,11 @@ namespace Elysian.Domain.Data
             {
                 base.Configure(builder);
 
+                builder.IsMultiTenant();
+
                 builder.HasKey(k => k.ProductImageId);
                 builder.Property(e => e.StorageId).IsRequired();
-                builder.HasIndex(e => e.StorageId).IsUnique().HasDatabaseName("AK_ProductImage_StorageId");
+                builder.HasIndex(["StorageId", "TenantId"]).IsUnique().HasDatabaseName("AK_ProductImage_StorageId");
                 builder.Property(e => e.FileName).IsRequired();
 
                 builder.HasOne(b => b.Product)
@@ -42,7 +44,7 @@ namespace Elysian.Domain.Data
                     .HasForeignKey(b => b.ProductId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                builder.ToTable("ProductImage").IsMultiTenant();
+                builder.ToTable("ProductImage");
             }
         }
     }

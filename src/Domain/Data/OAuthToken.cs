@@ -19,14 +19,18 @@ namespace Elysian.Domain.Data
         {
             public void Configure(EntityTypeBuilder<OAuthToken> builder)
             {
+                builder.IsMultiTenant();
+
                 builder.HasKey(k => k.OAuthTokenId);
                 builder.Property(e => e.OAuthProvider).IsRequired();
                 builder.Property(e => e.AccessToken).IsRequired();
                 builder.Property(e => e.TokenType).IsRequired();
                 builder.Property(e => e.UserId).IsRequired();
-                builder.HasIndex(e => new { e.OAuthProvider, e.UserId }).IsUnique().HasDatabaseName("AK_OAuthProvider_UserId");
+                builder.HasIndex(["OAuthProvider", "UserId", "TenantId"])
+                    .IsUnique()
+                    .HasDatabaseName("AK_OAuthProvider_UserId");
 
-                builder.ToTable("OAuthToken").IsMultiTenant();
+                builder.ToTable("OAuthToken");
             }
         }
     }
