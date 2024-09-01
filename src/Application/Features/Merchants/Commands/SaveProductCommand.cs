@@ -28,7 +28,6 @@ namespace Elysian.Application.Features.Merchants.Commands
                     .WithMessage("The serial number must be unique. The provided serial number already exists in the system");
 
             RuleFor(v => v.SaveProductRequest.ProductId)
-                .NotEmpty()
                 .MustAsync(BeValidProductId)
                     .WithMessage("No matching record found. The ID may be incorrect, or the record has been deleted.");
         }
