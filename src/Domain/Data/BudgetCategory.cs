@@ -7,10 +7,11 @@ using System.Text;
 using System.Threading.Tasks;
 using System.ComponentModel.DataAnnotations.Schema;
 using Finbuckle.MultiTenant;
+using Elysian.Domain.Seedwork;
 
 namespace Elysian.Domain.Data
 {
-    public class BudgetCategory
+    public class BudgetCategory : AuditableEntity
     {
         public int BudgetCategoryId { get; set; }
         public decimal Estimate { get; set; }
@@ -20,10 +21,12 @@ namespace Elysian.Domain.Data
         public Budget Budget { get; set; }
         public FinancialCategory FinancialCategory { get; set; }
 
-        public class BudgetCategoryConfiguration : IEntityTypeConfiguration<BudgetCategory>
+        public class BudgetCategoryConfiguration : AuditableEntityConfiguration<BudgetCategory>
         {
-            public void Configure(EntityTypeBuilder<BudgetCategory> builder)
+            public override void Configure(EntityTypeBuilder<BudgetCategory> builder)
             {
+                base.Configure(builder);
+
                 builder.HasKey(bc => bc.BudgetCategoryId);
 
                 builder.Property(bc => bc.BudgetCategoryId).IsRequired();

@@ -6,10 +6,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Finbuckle.MultiTenant;
+using Elysian.Domain.Seedwork;
 
 namespace Elysian.Domain.Data
 {
-    public class Budget
+    public class Budget : AuditableEntity
     {
         public int BudgetId { get; set; }
         public string Name { get; set; }
@@ -17,10 +18,12 @@ namespace Elysian.Domain.Data
         public DateTime EndDate { get; set; }
         public string UserId { get; set; }
 
-        public class Configuration : IEntityTypeConfiguration<Budget>
+        public class Configuration : AuditableEntityConfiguration<Budget>
         {
-            public void Configure(EntityTypeBuilder<Budget> builder)
+            public override void Configure(EntityTypeBuilder<Budget> builder)
             {
+                base.Configure(builder);
+
                 builder.HasKey(k => k.BudgetId);
                 builder.Property(e => e.Name).IsRequired();
                 builder.Property(e => e.StartDate).IsRequired();

@@ -19,7 +19,7 @@ namespace Elysian.Application.Features.CloudStorage.Queries
     public record GenerateSasTokenQueryResponse(string AccountName, string ContainerName, string BlobName,
         Guid StorageId, string SasToken);
 
-    public class GenerateSasTokenQueryHandler(ElysianContext context, IClaimsPrincipalAccessor claimsPrincipalAccessor, IAzureStorageClient azureStorageClient,
+    public class GenerateSasTokenQueryHandler(IAzureStorageClient azureStorageClient,
             IMultiTenantContextAccessor<ElysianTenantInfo> multiTenantContextAccessor)
             : IRequestHandler<GenerateSasTokenQuery, GenerateSasTokenQueryResponse>
     {

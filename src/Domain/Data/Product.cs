@@ -11,7 +11,7 @@ using Finbuckle.MultiTenant;
 
 namespace Elysian.Domain.Data
 {
-    public class Product : IAuditableEntitiy
+    public class Product : AuditableEntity
     {
         public int ProductId { get; set; }
         public string SerialNumber { get; set; }
@@ -54,12 +54,6 @@ namespace Elysian.Domain.Data
         public string LookupCode { get; set; }
         public decimal? Percentage { get; set; }
 
-        public string CreatedByUserId { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public string ModifiedByUserId { get; set; }
-        public DateTime ModifiedAt { get; set; }
-        public bool IsDeleted { get; set; }
-
         public int MerchantId { get; set; }
         public Merchant Merchant { get; set; }
         public int ProductTypeId { get; set; }
@@ -75,6 +69,7 @@ namespace Elysian.Domain.Data
             public override void Configure(EntityTypeBuilder<Product> builder)
             {
                 base.Configure(builder);
+
                 builder.IsMultiTenant();
 
                 builder.HasKey(k => k.ProductId);

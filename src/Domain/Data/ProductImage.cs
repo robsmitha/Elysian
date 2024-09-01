@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace Elysian.Domain.Data
 {
-    public class ProductImage : IAuditableEntitiy
+    public class ProductImage : AuditableEntity
     {
         public int ProductImageId { get; set; }
         public Guid StorageId { get; set; }
@@ -18,11 +18,6 @@ namespace Elysian.Domain.Data
         public string AltText { get; set; }
         public long FileSize { get; set; }
         public bool IsStorageDeleted { get; set; }
-        public string CreatedByUserId { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public string ModifiedByUserId { get; set; }
-        public DateTime ModifiedAt { get; set; }
-        public bool IsDeleted { get; set; }
         public int ProductId { get; set; }
         public  Product Product { get; set; }
 

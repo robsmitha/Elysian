@@ -9,17 +9,13 @@ using System.Threading.Tasks;
 
 namespace Elysian.Domain.Data
 {
-    public class PriceType : IAuditableEntitiy
+    public class PriceType : AuditableEntity
     {
         public int PriceTypeId { get; set; }
         public string Name { get; set; }
         public string Description { get; set; }
         public bool IsVariableCost { get; set; }
-        public string CreatedByUserId { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public string ModifiedByUserId { get; set; }
-        public DateTime ModifiedAt { get; set; }
-        public bool IsDeleted { get; set; }
+
         public class Configuration : AuditableEntityConfiguration<PriceType>
         {
             public override void Configure(EntityTypeBuilder<PriceType> builder)

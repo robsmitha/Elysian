@@ -35,7 +35,7 @@ namespace Elysian.Application.Features.Merchants.Commands
         public async Task<bool> BeUniqueSerialNumber(SaveProductRequest saveProductRequest,
             CancellationToken cancellationToken)
         {
-            var query = _context.Products.Where(c => !c.IsDeleted && c.SerialNumber == saveProductRequest.SerialNumber);
+            var query = _context.Products.Where(c => c.SerialNumber == saveProductRequest.SerialNumber);
 
             return saveProductRequest.ProductId.HasValue
                 ? !await query.AnyAsync(c => c.ProductId != saveProductRequest.ProductId, cancellationToken)
@@ -46,7 +46,7 @@ namespace Elysian.Application.Features.Merchants.Commands
         public async Task<bool> BeValidProductId(int? productId,
             CancellationToken cancellationToken)
         {
-            return !productId.HasValue || await _context.Products.AnyAsync(p => p.ProductId == productId && !p.IsDeleted, cancellationToken: cancellationToken);
+            return !productId.HasValue || await _context.Products.AnyAsync(p => p.ProductId == productId, cancellationToken: cancellationToken);
         }
     }
 
@@ -61,7 +61,7 @@ namespace Elysian.Application.Features.Merchants.Commands
             }
 
             var product = request.SaveProductRequest.ProductId.HasValue
-                ? await context.Products.SingleOrDefaultAsync(c => c.ProductId == request.SaveProductRequest.ProductId && !c.IsDeleted)
+                ? await context.Products.SingleOrDefaultAsync(c => c.ProductId == request.SaveProductRequest.ProductId)
                 : null;
 
             if (product == null)
@@ -90,11 +90,6 @@ namespace Elysian.Application.Features.Merchants.Commands
                     ProductTypeId = request.SaveProductRequest.ProductTypeId,
                     PriceTypeId = request.SaveProductRequest.PriceTypeId,
                     UnitTypeId = request.SaveProductRequest.UnitTypeId,
-                    // TODO: interceptor
-                    CreatedByUserId = claimsPrincipalAccessor.UserId,
-                    CreatedAt = DateTime.UtcNow,
-                    ModifiedByUserId = claimsPrincipalAccessor.UserId,
-                    ModifiedAt = DateTime.UtcNow
                 };
                 context.Add(product);
             }
@@ -118,10 +113,6 @@ namespace Elysian.Application.Features.Merchants.Commands
                     FileSize = image.FileSize,
                     AltText = image.FileName,
                     StorageId = image.StorageId,
-                    ModifiedByUserId = claimsPrincipalAccessor.UserId,
-                    ModifiedAt = DateTime.UtcNow,
-                    CreatedByUserId = claimsPrincipalAccessor.UserId,
-                    CreatedAt = DateTime.UtcNow,
                 });
             }
             await context.SaveChangesAsync(cancellationToken);

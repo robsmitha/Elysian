@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 namespace Elysian.Domain.Seedwork
 {
     public abstract class AuditableEntityConfiguration<T> : IEntityTypeConfiguration<T> 
-        where T : class, IAuditableEntitiy
+        where T : AuditableEntity
     {
         public virtual void Configure(EntityTypeBuilder<T> builder)
         {

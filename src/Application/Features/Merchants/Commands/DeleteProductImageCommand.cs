@@ -32,15 +32,15 @@ namespace Elysian.Application.Features.Merchants.Commands
         public async Task<bool> BeExistingProduct(int productImageId,
             CancellationToken cancellationToken)
         {
-            return await _context.ProductImages.AnyAsync(p => p.ProductImageId == productImageId && !p.IsDeleted, cancellationToken: cancellationToken);
+            return await _context.ProductImages.AnyAsync(p => p.ProductImageId == productImageId, cancellationToken: cancellationToken);
         }
     }
 
-    public class DeleteProductImageCommandHandler(ElysianContext context, IClaimsPrincipalAccessor claimsPrincipalAccessor) : IRequestHandler<DeleteProductImageCommand, bool>
+    public class DeleteProductImageCommandHandler(ElysianContext context) : IRequestHandler<DeleteProductImageCommand, bool>
     {
         public async Task<bool> Handle(DeleteProductImageCommand request, CancellationToken cancellationToken)
         {
-            var image = await context.ProductImages.SingleAsync(i => i.ProductImageId == request.ProductImageId && !i.IsDeleted, cancellationToken: cancellationToken);
+            var image = await context.ProductImages.SingleAsync(i => i.ProductImageId == request.ProductImageId, cancellationToken: cancellationToken);
             image.IsDeleted = true;
             await context.SaveChangesAsync(cancellationToken);
 

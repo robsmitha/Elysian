@@ -9,6 +9,7 @@ using Elysian.Infrastructure.Settings;
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -22,13 +23,21 @@ namespace Elysian.Infrastructure
         {
             services.AddSingleton<IClaimsPrincipalAccessor, ClaimsPrincipalAccessor>();
 
-            services.AddDbContext<ElysianContext>(options => options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+            services.AddDbContext<ElysianContext>((serviceProvider, options) =>
+            {
+                options.UseSqlServer(configuration.GetConnectionString("DefaultConnection"));
+                options.AddInterceptors(serviceProvider.GetServices<ISaveChangesInterceptor>());
+            });
+
+            services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
 
             services.AddDbContext<TenantContext>(options => options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
             services.AddMultiTenant<ElysianTenantInfo>()
                 .WithEFCoreStore<TenantContext, ElysianTenantInfo>()
                 .WithStrategy<TStrategy>(ServiceLifetime.Singleton, ["___tenant___"]);
+
+            services.AddSingleton(TimeProvider.System);
 
             return services;
         }

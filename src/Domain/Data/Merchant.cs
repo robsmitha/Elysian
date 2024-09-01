@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Elysian.Domain.Data
 {
-    public class Merchant : IAuditableEntitiy
+    public class Merchant : AuditableEntity
     {
         public int MerchantId { get; set; }
         public string MerchantIdentifier { get; set; }
@@ -18,12 +18,6 @@ namespace Elysian.Domain.Data
         public string WebsiteUrl { get; set; }
         public bool SelfBoardingApplication { get; set; }
         public bool IsBillable { get; set; }
-        public string CreatedByUserId { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public string ModifiedByUserId { get; set; }
-        public DateTime ModifiedAt { get; set; }
-        public bool IsDeleted { get; set; }
-
         public int MerchantTypeId { get; set; }
 
         public MerchantType MerchantType { get; set; }

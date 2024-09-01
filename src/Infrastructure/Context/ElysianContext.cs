@@ -45,6 +45,7 @@ namespace Elysian.Infrastructure.Context
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(ElysianContext).Assembly);
+            modelBuilder.ApplyGlobalIsDeletedFilter();
 
             base.OnModelCreating(modelBuilder);
         }

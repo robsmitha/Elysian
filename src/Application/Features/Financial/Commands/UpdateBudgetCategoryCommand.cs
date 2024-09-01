@@ -8,20 +8,15 @@ namespace Elysian.Application.Features.Financial.Commands
 {
 
     [Authorize]
-    public class UpdateBudgetCategoryCommand(int budgetId, string categoryName, decimal estimate) : IRequest<BudgetCategoryModel>
-    {
-        public int BudgetId { get; } = budgetId;
-        public string CategoryName { get; } = categoryName;
-        public decimal Estimate { get; } = estimate;
+    public record UpdateBudgetCategoryCommand(int BudgetId, string CategoryName, decimal Estimate) : IRequest<BudgetCategoryModel>;
 
-        public class Handler(ILogger<UpdateBudgetCategoryCommand> logger, IBudgetService budgetService, ICategoryService categoryService,
+    public class UpdateBudgetCategoryCommandHandler(ILogger<UpdateBudgetCategoryCommand> logger, IBudgetService budgetService, ICategoryService categoryService,
             IClaimsPrincipalAccessor claimsPrincipalAccessor) : IRequestHandler<UpdateBudgetCategoryCommand, BudgetCategoryModel>
+    {
+        public async Task<BudgetCategoryModel> Handle(UpdateBudgetCategoryCommand request, CancellationToken cancellationToken)
         {
-            public async Task<BudgetCategoryModel> Handle(UpdateBudgetCategoryCommand request, CancellationToken cancellationToken)
-            {
-                var category = await categoryService.GetCategoryByNameAsync(request.CategoryName);
-                return await budgetService.UpdateBudgetCategoryEstimateAsync(claimsPrincipalAccessor.UserId, request.BudgetId, category.FinancialCategoryId, request.Estimate);
-            }
+            var category = await categoryService.GetCategoryByNameAsync(request.CategoryName);
+            return await budgetService.UpdateBudgetCategoryEstimateAsync(claimsPrincipalAccessor.UserId, request.BudgetId, category.FinancialCategoryId, request.Estimate);
         }
     }
 }

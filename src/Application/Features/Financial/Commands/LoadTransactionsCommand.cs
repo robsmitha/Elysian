@@ -7,39 +7,25 @@ using Microsoft.Extensions.Logging;
 namespace Elysian.Application.Features.Financial.Commands
 {
     [Authorize]
-    public class LoadTransactionsCommand : IRequest<LoadTransactionsCommand.Response>
+    public record LoadTransactionsCommand(string UserId, int BudgetId) : IRequest<LoadTransactionsCommandResponse>;
+
+    public class LoadTransactionsCommandHandler(ILogger<LoadTransactionsCommand> logger, IFinancialService financialService,
+        IBudgetService budgetService, IClaimsPrincipalAccessor claimsPrincipalAccessor) : IRequestHandler<LoadTransactionsCommand, LoadTransactionsCommandResponse>
     {
-        private string UserId { get; set; }
-        private int BudgetId { get; set; }
-        public LoadTransactionsCommand(string userId, int budgetId)
+        public async Task<LoadTransactionsCommandResponse> Handle(LoadTransactionsCommand request, CancellationToken cancellationToken)
         {
-            if (string.IsNullOrEmpty(userId))
-            {
-                throw new ArgumentException($"{nameof(userId)} cannot be null or empty.");
-            }
-
-            UserId = userId;
-            BudgetId = budgetId;
+            var budget = await budgetService.GetBudgetAsync(claimsPrincipalAccessor.UserId, request.BudgetId);
+            var transactions = await financialService.GetTransactionsAsync(request.UserId, budget.StartDate, budget.EndDate);
+            return new LoadTransactionsCommandResponse(transactions);
         }
+    }
 
-        public class Handler(ILogger<LoadTransactionsCommand> logger, IFinancialService financialService,
-            IBudgetService budgetService, IClaimsPrincipalAccessor claimsPrincipalAccessor) : IRequestHandler<LoadTransactionsCommand, Response>
+    public class LoadTransactionsCommandResponse
+    {
+        public List<TransactionModel> Transactions { get; set; }
+        public LoadTransactionsCommandResponse(List<TransactionModel> transactions = null)
         {
-            public async Task<Response> Handle(LoadTransactionsCommand request, CancellationToken cancellationToken)
-            {
-                var budget = await budgetService.GetBudgetAsync(claimsPrincipalAccessor.UserId, request.BudgetId);
-                var transactions = await financialService.GetTransactionsAsync(request.UserId, budget.StartDate, budget.EndDate);
-                return new Response(transactions);
-            }
-        }
-
-        public class Response
-        {
-            public List<TransactionModel> Transactions { get; set; }
-            public Response(List<TransactionModel> transactions = null)
-            {
-                Transactions = transactions ?? new List<TransactionModel>();
-            }
+            Transactions = transactions ?? new List<TransactionModel>();
         }
     }
 }

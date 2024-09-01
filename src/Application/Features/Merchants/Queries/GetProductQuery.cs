@@ -18,48 +18,44 @@ using System.Threading.Tasks;
 namespace Elysian.Application.Features.Merchants.Queries
 {
     [Authorize]
-    public class GetProductQuery(int productId) : IRequest<GetProductQuery.Response>
+    public record GetProductQuery(int ProductId) : IRequest<GetProductQueryResponse>;
+
+    public class GetProductQueryValidator : AbstractValidator<GetProductQuery>
     {
-        public int ProductId { get; set; } = productId;
-
-        public class Validator : AbstractValidator<GetProductQuery>
+        private readonly ElysianContext _context;
+        public GetProductQueryValidator(ElysianContext context)
         {
-            private readonly ElysianContext _context;
-            public Validator(ElysianContext context)
-            {
-                _context = context;
+            _context = context;
 
-                RuleFor(v => v.ProductId)
-                    .NotEmpty()
-                    .MustAsync(BeExistingProduct)
-                        .WithMessage("No matching record found. The ID may be incorrect, or the record has been deleted.");
-            }
-
-            public async Task<bool> BeExistingProduct(int productId,
-                CancellationToken cancellationToken)
-            {
-                return await _context.Products.AnyAsync(p => p.ProductId == productId && !p.IsDeleted, cancellationToken: cancellationToken);
-            }
+            RuleFor(v => v.ProductId)
+                .NotEmpty()
+                .MustAsync(BeExistingProduct)
+                    .WithMessage("No matching record found. The ID may be incorrect, or the record has been deleted.");
         }
 
-        public record Response(Product Product, List<ProductImage> Images);
-        public class Handler(ElysianContext context, IClaimsPrincipalAccessor claimsPrincipalAccessor,
-            BlobServiceClient blobServiceClient, IAzureStorageClient azureStorageClient)
-            : IRequestHandler<GetProductQuery, Response>
+        public async Task<bool> BeExistingProduct(int productId,
+            CancellationToken cancellationToken)
         {
-            public async Task<Response> Handle(GetProductQuery request, CancellationToken cancellationToken)
-            {
-                var (product, images) = await GetProductExtensionsAsync(c => c.ProductId == request.ProductId);
+            return await _context.Products.AnyAsync(p => p.ProductId == productId, cancellationToken: cancellationToken);
+        }
+    }
 
-                return new Response(product, images);
-            }
+    public record GetProductQueryResponse(Product Product, List<ProductImage> Images);
+    public class GetProductQueryHandler(ElysianContext context)
+        : IRequestHandler<GetProductQuery, GetProductQueryResponse>
+    {
+        public async Task<GetProductQueryResponse> Handle(GetProductQuery request, CancellationToken cancellationToken)
+        {
+            var (product, images) = await GetProductExtensionsAsync(c => c.ProductId == request.ProductId);
 
-            private async Task<(Product, List<ProductImage>)> GetProductExtensionsAsync(Expression<Func<Product, bool>> predicate)
-            {
-                var product = await context.Products.SingleOrDefaultAsync(predicate) ?? throw new NotFoundException();
-                var images = await context.ProductImages.Where(i => i.ProductId == product.ProductId && !i.IsDeleted).ToListAsync();
-                return (product, images);
-            }
+            return new GetProductQueryResponse(product, images);
+        }
+
+        private async Task<(Product, List<ProductImage>)> GetProductExtensionsAsync(Expression<Func<Product, bool>> predicate)
+        {
+            var product = await context.Products.SingleOrDefaultAsync(predicate) ?? throw new NotFoundException();
+            var images = await context.ProductImages.Where(i => i.ProductId == product.ProductId).ToListAsync();
+            return (product, images);
         }
     }
 }

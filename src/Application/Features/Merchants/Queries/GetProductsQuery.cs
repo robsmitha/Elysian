@@ -18,7 +18,7 @@ namespace Elysian.Application.Features.Merchants.Queries
     {
         public async Task<List<Product>> Handle(GetProductsQuery request, CancellationToken cancellationToken)
         {
-            return await context.Products.Where(p => !p.IsDeleted).AsNoTracking().ToListAsync(cancellationToken);
+            return await context.Products.AsNoTracking().ToListAsync(cancellationToken);
         }
     }
 }

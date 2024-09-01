@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Elysian.Domain.Data
 {
-    public class UnitType : IAuditableEntitiy
+    public class UnitType : AuditableEntity
     {
         public int UnitTypeId { get; set; }
         public string Name { get; set; }
@@ -19,11 +19,7 @@ namespace Elysian.Domain.Data
         /// Abbreviation (i.e. 4 each)
         /// </summary>
         public string PerUnit { get; set; }
-        public string CreatedByUserId { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public string ModifiedByUserId { get; set; }
-        public DateTime ModifiedAt { get; set; }
-        public bool IsDeleted { get; set; }
+
         public class Configuration : AuditableEntityConfiguration<UnitType>
         {
             public override void Configure(EntityTypeBuilder<UnitType> builder)

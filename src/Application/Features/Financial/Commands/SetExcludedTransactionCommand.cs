@@ -6,17 +6,12 @@ using MediatR;
 namespace Elysian.Application.Features.Financial.Commands
 {
     [Authorize]
-    public class SetExcludedTransactionCommand(string transactionId, int budgetId) : IRequest<BudgetExcludedTransactionModel>
+    public record SetExcludedTransactionCommand(string TransactionId, int BudgetId) : IRequest<BudgetExcludedTransactionModel>;
+    public class SetExcludedTransactionCommandHandler(IBudgetService budgetService, IClaimsPrincipalAccessor claimsPrincipalAccessor) : IRequestHandler<SetExcludedTransactionCommand, BudgetExcludedTransactionModel>
     {
-        private string TransactionId { get; set; } = transactionId;
-        private int BudgetId { get; set; } = budgetId;
-
-        public class Handler(IBudgetService budgetService, IClaimsPrincipalAccessor claimsPrincipalAccessor) : IRequestHandler<SetExcludedTransactionCommand, BudgetExcludedTransactionModel>
+        public async Task<BudgetExcludedTransactionModel> Handle(SetExcludedTransactionCommand request, CancellationToken cancellationToken)
         {
-            public async Task<BudgetExcludedTransactionModel> Handle(SetExcludedTransactionCommand request, CancellationToken cancellationToken)
-            {
-                return await budgetService.SetExcludedTransactionAsync(claimsPrincipalAccessor.UserId, request.BudgetId, request.TransactionId);
-            }
+            return await budgetService.SetExcludedTransactionAsync(claimsPrincipalAccessor.UserId, request.BudgetId, request.TransactionId);
         }
     }
 }

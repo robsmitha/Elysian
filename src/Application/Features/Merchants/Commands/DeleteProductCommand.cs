@@ -29,11 +29,11 @@ namespace Elysian.Application.Features.Merchants.Commands
         public async Task<bool> BeExistingProduct(int productId,
             CancellationToken cancellationToken)
         {
-            return await _context.Products.AnyAsync(p => p.ProductId == productId && !p.IsDeleted, cancellationToken: cancellationToken);
+            return await _context.Products.AnyAsync(p => p.ProductId == productId, cancellationToken: cancellationToken);
         }
     }
 
-    public class DeleteProductCommandHandler(ElysianContext context, IClaimsPrincipalAccessor claimsPrincipalAccessor) : IRequestHandler<DeleteProductCommand, bool>
+    public class DeleteProductCommandHandler(ElysianContext context) : IRequestHandler<DeleteProductCommand, bool>
     {
         public async Task<bool> Handle(DeleteProductCommand request, CancellationToken cancellationToken)
         {
@@ -47,7 +47,7 @@ namespace Elysian.Application.Features.Merchants.Commands
         private async Task<(Product, List<ProductImage>)> GetProductExtensionsAsync(Expression<Func<Product, bool>> predicate)
         {
             var product = await context.Products.SingleOrDefaultAsync(predicate) ?? throw new NotFoundException();
-            var images = await context.ProductImages.Where(i => i.ProductId == product.ProductId && !i.IsDeleted).ToListAsync();
+            var images = await context.ProductImages.Where(i => i.ProductId == product.ProductId).ToListAsync();
             return (product, images);
         }
     }

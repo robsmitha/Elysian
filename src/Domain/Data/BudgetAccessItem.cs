@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Finbuckle.MultiTenant;
+using Elysian.Domain.Seedwork;
 
 namespace Elysian.Domain.Data
 {

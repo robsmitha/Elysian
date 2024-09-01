@@ -7,26 +7,23 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Elysian.Application.Features.Code.Queries
 {
-    public class SearchCodeQuery(string term) : IRequest<GitHubCodeSearchResponse>
+    public record SearchCodeQuery(string Term) : IRequest<GitHubCodeSearchResponse>;
+
+    public class SearchCodeQueryHandler(ElysianContext context, IGitHubService gitHubService, IClaimsPrincipalAccessor claimsPrincipalAccessor) : IRequestHandler<SearchCodeQuery, GitHubCodeSearchResponse>
     {
-        public string Term { get; set; } = term;
-
-        public class Handler(ElysianContext context, IGitHubService gitHubService, IClaimsPrincipalAccessor claimsPrincipalAccessor) : IRequestHandler<SearchCodeQuery, GitHubCodeSearchResponse>
+        public async Task<GitHubCodeSearchResponse> Handle(SearchCodeQuery request, CancellationToken cancellationToken)
         {
-            public async Task<GitHubCodeSearchResponse> Handle(SearchCodeQuery request, CancellationToken cancellationToken)
+            var userGitHubTokenQuery = context.OAuthTokens.Where(t => t.UserId == claimsPrincipalAccessor.UserId && t.OAuthProvider == OAuthProviders.GitHub);
+
+            var accessToken = claimsPrincipalAccessor.IsAuthenticated && await userGitHubTokenQuery.AnyAsync()
+                ? await userGitHubTokenQuery.Select(t => t.AccessToken).SingleOrDefaultAsync()
+                : null;
+
+            return await gitHubService.GetGitHubCodeSearchResultsAsync(new GitHubCodeSearchRequest
             {
-                var userGitHubTokenQuery = context.OAuthTokens.Where(t => t.UserId == claimsPrincipalAccessor.UserId && t.OAuthProvider == OAuthProviders.GitHub);
-
-                var accessToken = claimsPrincipalAccessor.IsAuthenticated && await userGitHubTokenQuery.AnyAsync()
-                    ? await userGitHubTokenQuery.Select(t => t.AccessToken).SingleOrDefaultAsync()
-                    : null;
-
-                return await gitHubService.GetGitHubCodeSearchResultsAsync(new GitHubCodeSearchRequest
-                {
-                    Term = request.Term,
-                    AccessToken = accessToken
-                });
-            }
+                Term = request.Term,
+                AccessToken = accessToken
+            });
         }
     }
 }

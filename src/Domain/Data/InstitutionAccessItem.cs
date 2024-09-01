@@ -6,10 +6,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Finbuckle.MultiTenant;
+using Elysian.Domain.Seedwork;
 
 namespace Elysian.Domain.Data
 {
-    public class InstitutionAccessItem
+    public class InstitutionAccessItem : AuditableEntity
     {
         public int InstitutionAccessItemId { get; set; }
         public string UserId { get; set; }
@@ -17,10 +18,12 @@ namespace Elysian.Domain.Data
         public string ItemId { get; set; }
         public string InstitutionId { get; set; }
 
-        public class Configuration : IEntityTypeConfiguration<InstitutionAccessItem>
+        public class Configuration : AuditableEntityConfiguration<InstitutionAccessItem>
         {
-            public void Configure(EntityTypeBuilder<InstitutionAccessItem> builder)
+            public override void Configure(EntityTypeBuilder<InstitutionAccessItem> builder)
             {
+                base.Configure(builder);
+
                 builder.IsMultiTenant();
 
                 builder.HasKey(k => k.InstitutionAccessItemId);

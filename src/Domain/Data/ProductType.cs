@@ -9,16 +9,12 @@ using System.Threading.Tasks;
 
 namespace Elysian.Domain.Data
 {
-    public class ProductType : IAuditableEntitiy
+    public class ProductType : AuditableEntity
     {
         public int ProductTypeId { get; set; }
         public string Name { get; set; }
         public string Description { get; set; }
-        public string CreatedByUserId { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public string ModifiedByUserId { get; set; }
-        public DateTime ModifiedAt { get; set; }
-        public bool IsDeleted { get; set; }
+
         public class Configuration : AuditableEntityConfiguration<ProductType>
         {
             public override void Configure(EntityTypeBuilder<ProductType> builder)
