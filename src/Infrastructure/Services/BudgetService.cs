@@ -107,6 +107,34 @@ namespace Elysian.Infrastructure.Services
                 context.RemoveRange(oldCategories);
             }
 
+            var newAccessItemIds = model.BudgetAccessItems.Select(c => c.InstitutionAccessItemId);
+            var oldAccessItems = await context.BudgetAccessItems.Where(c => c.BudgetId == model.BudgetId).ToListAsync();
+            var oldAccessItemsIds = oldAccessItems.Select(c => c.InstitutionAccessItemId).ToList();
+            if (model.BudgetAccessItems?.Count > 0)
+            {
+                var removeAccessItemsIds = oldAccessItemsIds.Except(newAccessItemIds).ToList();
+                foreach (var removeAccessItemId in removeAccessItemsIds)
+                {
+                    var budgetAccessItem = await context.BudgetAccessItems.FirstOrDefaultAsync(c => c.BudgetId == model.BudgetId 
+                        && c.InstitutionAccessItemId == removeAccessItemId);
+                    context.Remove(budgetAccessItem);
+                }
+
+                var addAccessItemIds = newAccessItemIds.Except(oldAccessItemsIds).ToList();
+                foreach (var accessItemId in addAccessItemIds)
+                {
+                    await context.AddAsync(new BudgetAccessItem
+                    {
+                        BudgetId = budget.BudgetId,
+                        InstitutionAccessItemId = accessItemId
+                    });
+                }
+            }
+            else if (oldAccessItems.Any())
+            {
+                context.RemoveRange(oldAccessItems);
+            }
+
             await context.SaveChangesAsync();
             return mapper.Map<BudgetModel>(budget);
         }
