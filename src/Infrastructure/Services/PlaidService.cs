@@ -2,8 +2,10 @@
 using Elysian.Application.Exceptions;
 using Elysian.Application.Features.Financial.Models;
 using Elysian.Application.Interfaces;
+using Elysian.Domain.Data;
 using Elysian.Domain.Responses.Plaid;
 using Elysian.Infrastructure.Settings;
+using Finbuckle.MultiTenant.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
@@ -12,7 +14,9 @@ using System.Text;
 namespace Elysian.Infrastructure.Services
 {
     public class PlaidService(IHttpClientFactory httpClientFactory, IOptions<PlaidSettings> plaidSettings, IMapper mapper,
-        IAccessTokenService accessTokenService, ICategoryService categoryService, ILogger<IFinancialService> logger) : IFinancialService
+        IAccessTokenService accessTokenService, ICategoryService categoryService, ILogger<IFinancialService> logger,
+        IMultiTenantContextAccessor<ElysianTenantInfo> multiTenantContextAccessor) 
+        : IFinancialService
     {
         private readonly PlaidSettings _plaidSettings = plaidSettings.Value;
 
@@ -77,7 +81,7 @@ namespace Elysian.Infrastructure.Services
                     {
                         client_user_id = userId
                     },
-                    client_name = "Expense Tracker",
+                    client_name = multiTenantContextAccessor.MultiTenantContext.TenantInfo.Name,
                     products = new[] { "transactions" },
                     country_codes = new[] { "US" },
                     language = "en"
@@ -90,7 +94,7 @@ namespace Elysian.Infrastructure.Services
                     {
                         client_user_id = userId
                     },
-                    client_name = "Expense Tracker",
+                    client_name = multiTenantContextAccessor.MultiTenantContext.TenantInfo.Name,
                     access_token = accessToken,
                     country_codes = new[] { "US" },
                     language = "en"

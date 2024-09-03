@@ -59,7 +59,7 @@ namespace Elysian.Application.Features.Financial.Models
                                 FinancialCategoryId = -1,
                                 FinancialCategoryName = "Uncategorized"
                             })
-                            where !excludedTransactionIds.Contains(t.transaction_id)
+                            where !excludedTransactionIds.Contains(t.transaction_id, StringComparer.OrdinalIgnoreCase)
                             select TransactionWithCategory(t, c)).ToList();
 
             ExcludedTransactions = allTransactions.Where(t => excludedTransactionIds.Contains(t.transaction_id)).ToList();
@@ -81,16 +81,17 @@ namespace Elysian.Application.Features.Financial.Models
                                   join t in Transactions on c.FinancialCategoryId equals t.Category.FinancialCategoryId into tmpT
                                   from t in tmpT.DefaultIfEmpty(new TransactionModel
                                   {
-                                      amount = 0
+                                      amount = 0,
+                                      transaction_id = "-1"
                                   })
-                                  group t.amount by new { c.FinancialCategoryId, c.FinancialCategoryName, c.Estimate } into g
+                                  group new { t.amount, t.transaction_id } by new { c.FinancialCategoryId, c.FinancialCategoryName, c.Estimate } into g
                                   select new TransactionCategoryData
                                   {
                                       FinancialCategoryId = g.Key.FinancialCategoryId,
                                       Estimate = g.Key.Estimate,
                                       Category = g.Key.FinancialCategoryName,
-                                      Sum = (decimal)g.Sum(),
-                                      Count = g.Count()
+                                      Sum = (decimal)g.Where(t => t.transaction_id != "-1").Sum(t => t.amount),
+                                      Count = g.Where(t => t.transaction_id != "-1").Count()
                                   }).ToList();
         }
 
