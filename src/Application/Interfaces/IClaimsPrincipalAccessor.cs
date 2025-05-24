@@ -11,7 +11,9 @@ namespace Elysian.Application.Interfaces
     {
         ClaimsPrincipal? Principal { get; set; }
         string? UserId { get; }
+        string? UserName { get; }
         bool IsAuthenticated { get; }
         Dictionary<string, string> Claims { get; }
+        List<string> Roles { get; }
     }
 }

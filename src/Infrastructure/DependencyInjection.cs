@@ -22,6 +22,7 @@ namespace Elysian.Infrastructure
             where TStrategy : IMultiTenantStrategy
         {
             services.AddSingleton<IClaimsPrincipalAccessor, ClaimsPrincipalAccessor>();
+            services.AddScoped<IIdentityService, IdentityService>();
 
             services.AddDbContext<ElysianContext>((serviceProvider, options) =>
             {

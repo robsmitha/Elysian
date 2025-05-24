@@ -26,12 +26,19 @@ namespace Elysian.Infrastructure.Identity
         }
 
         public string? UserId => Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? Guid.Empty.ToString();
+        public string? UserName => Principal?.FindFirst(ClaimTypes.Name)?.Value ?? string.Empty;
+        public string? IdentityProvider => Principal?.FindFirst("idp")?.Value ?? string.Empty;
+
         public bool IsAuthenticated => Principal?.Identity?.IsAuthenticated ?? false;
         
         public Dictionary<string, string> Claims => Principal?.Claims
             .GroupBy(c => c.Type)
             .ToDictionary(g => g.Key, g => string.Join(",", g.Select(c => c.Value)))
             ?? [];
+
+        public List<string> Roles => Principal?.FindAll(ClaimTypes.Role)
+            .Select(c => c.Value)
+            .ToList() ?? [];
 
         private class ContextHolder
         {
