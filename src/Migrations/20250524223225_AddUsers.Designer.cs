@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Elysian.Migrations
 {
     [DbContext(typeof(ElysianContext))]
-    [Migration("20250524220102_AddUsers")]
+    [Migration("20250524223225_AddUsers")]
     partial class AddUsers
     {
         /// <inheritdoc />
@@ -851,7 +851,6 @@ namespace Elysian.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Email")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ExternalUserId")

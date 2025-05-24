@@ -28,7 +28,7 @@ namespace Elysian.Domain.Data
 
                 builder.HasKey(k => k.UserId);
 
-                builder.Property(e => e.Email).IsRequired();
+                builder.Property(e => e.Email).IsRequired(false);
 
                 builder.HasIndex(e => e.ExternalUserId).IsUnique()
                     .HasDatabaseName("AK_User_ExternalUserId");
@@ -39,7 +39,6 @@ namespace Elysian.Domain.Data
                 {
                     ownedNavigationBuilder.ToJson();
                 });
-
 
                 builder.ToTable("User").IsMultiTenant();
             }
