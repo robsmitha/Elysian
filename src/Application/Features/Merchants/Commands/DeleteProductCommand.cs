@@ -10,7 +10,7 @@ using System.Linq.Expressions;
 
 namespace Elysian.Application.Features.Merchants.Commands
 {
-    [Authorize]
+    [Authorize(Policy = PolicyNames.ProductDelete)]
     public record DeleteProductCommand(int ProductId) : IRequest<bool>;
 
     public class DeleteProductCommandValidator : AbstractValidator<DeleteProductCommand>

@@ -6,8 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Elysian.Application.Features.Financial.Commands
 {
-
-    [Authorize]
+    [Authorize(Policy = PolicyNames.BudgetWrite)]
     public record UpdateBudgetCategoryCommand(int BudgetId, string CategoryName, decimal Estimate) : IRequest<BudgetCategoryModel>;
 
     public class UpdateBudgetCategoryCommandHandler(ILogger<UpdateBudgetCategoryCommand> logger, IBudgetService budgetService, ICategoryService categoryService,

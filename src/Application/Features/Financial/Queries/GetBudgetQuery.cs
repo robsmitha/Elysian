@@ -7,7 +7,7 @@ using MediatR;
 
 namespace Elysian.Application.Features.Financial.Queries
 {
-    [Authorize]
+    [Authorize(Policy = PolicyNames.BudgetRead)]
     public record GetBudgetQuery(int BudgetId) : IRequest<BudgetViewModel>;
 
     public class GetBudgetQueryHandler(IFinancialService financialService, IAccessTokenService accessTokenService,

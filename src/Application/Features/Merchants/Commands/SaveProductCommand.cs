@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Elysian.Application.Features.Merchants.Commands
 {
-    [Authorize]
+    [Authorize(Policy = PolicyNames.ProductWrite)]
     public record SaveProductCommand(SaveProductRequest SaveProductRequest) : IRequest<Product>;
 
     public class SaveProductCommandValidator : AbstractValidator<SaveProductCommand>

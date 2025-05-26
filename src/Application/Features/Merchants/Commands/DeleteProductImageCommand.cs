@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace Elysian.Application.Features.Merchants.Commands
 {
-    [Authorize]
+    [Authorize(Policy = PolicyNames.ProductDelete)]
     public record DeleteProductImageCommand(int ProductImageId) : IRequest<bool>;
 
     public class DeleteProductImageCommandValidator : AbstractValidator<DeleteProductImageCommand>

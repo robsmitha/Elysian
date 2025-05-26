@@ -2,11 +2,10 @@
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Security;
 using MediatR;
-using Microsoft.Extensions.Logging;
 
 namespace Elysian.Application.Features.Financial.Commands
 {
-    [Authorize]
+    [Authorize(Policy = PolicyNames.BudgetWrite)]
     public record CreateLinkTokenCommand(string AccessToken) : IRequest<LinkTokenModel>;
 
     public class CreateLinkTokenCommandHandler(IFinancialService financialService, IClaimsPrincipalAccessor claimsPrincipalAccessor)

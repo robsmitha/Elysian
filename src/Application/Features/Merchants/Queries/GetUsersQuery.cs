@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace Elysian.Application.Features.Merchants.Queries
 {
-    [Authorize]
+    [Authorize(Policy = PolicyNames.UserRead)]
     public record GetUsersQuery : IRequest<List<User>>;
 
     public class GetUsersQueryHandler(ElysianContext context) : IRequestHandler<GetUsersQuery, List<User>>

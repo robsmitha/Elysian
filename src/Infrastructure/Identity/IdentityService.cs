@@ -1,16 +1,11 @@
 ﻿using Elysian.Application.Exceptions;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
+using Elysian.Domain.Security;
 using Elysian.Infrastructure.Context;
 using Finbuckle.MultiTenant.Abstractions;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
-using System.Security.Principal;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Elysian.Infrastructure.Identity
 {
@@ -48,8 +43,6 @@ namespace Elysian.Infrastructure.Identity
                 .Select(c => c.Value)
                 .ToList() ?? [];
 
-            var policies = GetPolicies(roles);
-
             user = new User
             {
                 ExternalUserId = externalUserId,
@@ -58,7 +51,7 @@ namespace Elysian.Infrastructure.Identity
                 AccessControl = new AccessControl
                 {
                     Roles = roles,
-                    Policies = policies
+                    Policies = PolicyNames.GetDefaultPolicies(roles)
                 }
             };
 
@@ -66,29 +59,6 @@ namespace Elysian.Infrastructure.Identity
             await context.SaveChangesAsync();
 
             return user;
-        }
-
-        private static List<string> GetPolicies(List<string> roles)
-        {
-            var roleHierarchy = new Dictionary<string, (int Level, string[] Policies)>
-            {
-                ["systemAdmin"] = (3, new[] { "user:read", "user:write" }),
-                ["merchantAdmin"] = (2, new[] { "product:read", "product:write" })
-            };
-
-            var userLevel = roles
-                .Where(role => roleHierarchy.ContainsKey(role))
-                .Select(role => roleHierarchy[role].Level)
-                .DefaultIfEmpty(0)
-                .Max();
-
-            var policies = roleHierarchy
-                .Where(kv => kv.Value.Level <= userLevel)
-                .SelectMany(kv => kv.Value.Policies)
-                .Distinct()
-                .ToList();
-
-            return policies;
         }
     }
 }

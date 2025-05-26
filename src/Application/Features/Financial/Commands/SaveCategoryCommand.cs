@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Elysian.Application.Features.Financial.Commands
 {
-    [Authorize]
+    [Authorize(Policy = PolicyNames.BudgetWrite)]
     public record SaveCategoryCommand(FinancialCategoryModel Category, int BudgetId, decimal? Estimate = null) : IRequest<FinancialCategoryModel>;
 
     public class SaveCategoryCommandValidator : AbstractValidator<SaveCategoryCommand>

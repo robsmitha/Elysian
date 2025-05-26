@@ -4,17 +4,11 @@ using Elysian.Domain.Constants;
 using Elysian.Domain.Data;
 using Elysian.Domain.Security;
 using Elysian.Infrastructure.Context;
-using Elysian.Infrastructure.Identity;
 using MediatR;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Elysian.Application.Features.Code.Commands
 {
-    [Authorize]
+    [Authorize(Policy = PolicyNames.CodeWrite)]
     public record CreateGitHubOAuthUrlCommand : IRequest<GitHubOAuthUrl>;
     public class CreateGitHubOAuthUrlCommandHandler(ElysianContext context, IGitHubService gitHubService, IClaimsPrincipalAccessor claimsPrincipalAccessor) : IRequestHandler<CreateGitHubOAuthUrlCommand, GitHubOAuthUrl>
     {

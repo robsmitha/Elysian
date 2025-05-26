@@ -1,11 +1,9 @@
 ﻿using Elysian.Application.Features.Code.Models;
-using Elysian.Application.Features.Merchants.Commands;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Constants;
 using Elysian.Domain.Data;
 using Elysian.Domain.Security;
 using Elysian.Infrastructure.Context;
-using Elysian.Infrastructure.Identity;
 using Elysian.Infrastructure.Settings;
 using FluentValidation;
 using MediatR;
@@ -15,7 +13,7 @@ using System.Data;
 
 namespace Elysian.Application.Features.Code.Commands
 {
-    [Authorize]
+    [Authorize(Policy = PolicyNames.CodeWrite)]
     public record CreateGitHubAccessTokenCommand(GitHubAccessTokenRequest GitHubAccessTokenRequest) : IRequest<OAuthToken>;
 
     public class CreateGitHubAccessTokenCommandValidator : AbstractValidator<CreateGitHubAccessTokenCommand>

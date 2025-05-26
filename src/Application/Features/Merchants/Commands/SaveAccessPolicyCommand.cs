@@ -1,6 +1,7 @@
 ﻿using Elysian.Application.Exceptions;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
+using Elysian.Domain.Security;
 using Elysian.Infrastructure.Context;
 using MediatR;
 using System;
@@ -11,6 +12,7 @@ using System.Threading.Tasks;
 
 namespace Elysian.Application.Features.Merchants.Commands
 {
+    [Authorize(Policy = PolicyNames.UserWrite)]
     public record SaveAccessPolicyCommand(int UserId, AccessControl AccessControl) : IRequest<AccessControl>;
 
     public class SaveAccessPolicyCommandHandler(ElysianContext context)

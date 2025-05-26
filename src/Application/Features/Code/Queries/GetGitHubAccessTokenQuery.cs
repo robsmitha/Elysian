@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace Elysian.Application.Features.Code.Queries
 {
-    [Authorize]
+    [Authorize(Policy = PolicyNames.CodeRead)]
     public record GetGitHubAccessTokenQuery : IRequest<OAuthToken>;
 
     public class GetGitHubAccessTokenQueryHandler(ElysianContext context, IClaimsPrincipalAccessor claimsPrincipalAccessor) : IRequestHandler<GetGitHubAccessTokenQuery, OAuthToken>

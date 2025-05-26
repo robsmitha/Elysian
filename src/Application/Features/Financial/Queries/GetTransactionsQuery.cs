@@ -7,8 +7,7 @@ using MediatR;
 
 namespace Elysian.Application.Features.Financial.Queries
 {
-
-    [Authorize]
+    [Authorize(Policy = PolicyNames.BudgetRead)]
     public record GetTransactionsQuery(int BudgetId) : IRequest<GetTransactionsQueryResponse>;
 
     public record GetTransactionsQueryResponse(List<TransactionModel> Transactions, List<ExpiredAccessItem> ExpiredAccessItems);

@@ -7,7 +7,7 @@ using MediatR;
 
 namespace Elysian.Application.Features.Financial.Queries
 {
-    [Authorize]
+    [Authorize(Policy = PolicyNames.BudgetRead)]
     public record GetUserAccessItemsQuery : IRequest<List<InstitutionAccessItemModel>>;
 
     public class GetUserAccessItemsQueryHandler(IFinancialService financialService, IAccessTokenService accessTokenService, IClaimsPrincipalAccessor claimsPrincipalAccessor)

@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace Elysian.Application.Features.CloudStorage.Queries
 {
-    [Authorize]
+    [Authorize(Policy = PolicyNames.ProductWrite)]
     public record GenerateSasTokenQuery(string FileName) : IRequest<GenerateSasTokenQueryResponse>;
 
     public record GenerateSasTokenQueryResponse(string AccountName, string ContainerName, string BlobName,

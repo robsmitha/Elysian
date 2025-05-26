@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace Elysian.Application.Features.Merchants.Queries
 {
-    [Authorize]
+    [Authorize(Policy = PolicyNames.ProductRead)]
     public record GetProductsQuery : IRequest<List<Product>>;
 
     public class GetProductsQueryHander(ElysianContext context) : IRequestHandler<GetProductsQuery, List<Product>>

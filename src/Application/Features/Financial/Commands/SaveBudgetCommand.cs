@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Elysian.Application.Features.Financial.Commands
 {
-    [Authorize]
+    [Authorize(Policy = PolicyNames.BudgetWrite)]
     public record SaveBudgetCommand(BudgetModel Budget) : IRequest<BudgetModel>;
 
     public class SaveBudgetCommandValidator : AbstractValidator<SaveBudgetCommand>

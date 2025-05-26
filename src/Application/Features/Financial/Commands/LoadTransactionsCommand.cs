@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Elysian.Application.Features.Financial.Commands
 {
-    [Authorize]
+    [Authorize(Policy = PolicyNames.BudgetWrite)]
     public record LoadTransactionsCommand(string UserId, int BudgetId) : IRequest<LoadTransactionsCommandResponse>;
 
     public class LoadTransactionsCommandHandler(ILogger<LoadTransactionsCommand> logger, IFinancialService financialService,

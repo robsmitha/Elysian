@@ -5,7 +5,7 @@ using MediatR;
 
 namespace Elysian.Application.Features.Financial.Commands
 {
-    [Authorize]
+    [Authorize(Policy = PolicyNames.BudgetWrite)]
     public record SetExcludedTransactionCommand(string TransactionId, int BudgetId) : IRequest<BudgetExcludedTransactionModel>;
     public class SetExcludedTransactionCommandHandler(IBudgetService budgetService, IClaimsPrincipalAccessor claimsPrincipalAccessor) : IRequestHandler<SetExcludedTransactionCommand, BudgetExcludedTransactionModel>
     {

@@ -5,8 +5,7 @@ using MediatR;
 
 namespace Elysian.Application.Features.Financial.Commands
 {
-
-    [Authorize]
+    [Authorize(Policy = PolicyNames.BudgetWrite)]
     public record SetTransactionCategoryCommand(string TransactionId, int CategoryId, int BudgetId) : IRequest<TransactionCategoryModel>;
 
     public class SetTransactionCategoryCommandHandler(ICategoryService categoryService, IBudgetService budgetService, IClaimsPrincipalAccessor claimsPrincipalAccessor) : IRequestHandler<SetTransactionCategoryCommand, TransactionCategoryModel>

@@ -7,7 +7,7 @@ using MediatR;
 
 namespace Elysian.Application.Features.Financial.Queries
 {
-    [Authorize]
+    [Authorize(Policy = PolicyNames.BudgetRead)]
     public record GetBudgetsQuery : IRequest<List<BudgetListItem>>;
 
     public class BudgetListItem(BudgetModel budget,
