@@ -25,7 +25,7 @@ namespace Elysian.Domain.Security
         public const string UserWrite = "user.write";
         public const string UserDelete = "user.delete";
 
-        private static readonly Dictionary<string, (int Level, string[] Policies)> roleHierarchy = new()
+        private static readonly Dictionary<string, (int Level, string[] Policies)> roleHierarchy = new(StringComparer.OrdinalIgnoreCase)
         {
             { RoleNames.Authenticated, (1,[CodeRead, CodeWrite, CodeDelete]) },
             { RoleNames.MerchantAdmin, (100,[ProductRead, ProductWrite, ProductDelete, BudgetRead, BudgetWrite, BudgetDelete]) },
