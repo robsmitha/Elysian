@@ -11,7 +11,7 @@ namespace Elysian.Infrastructure.Services
     {
         public async Task<List<InstitutionAccessTokenModel>> GetAccessTokensAsync(string userId)
         {
-            var accessToken = await context.InstitutionAccessItems.Where(a => a.UserId == userId).ToListAsync();
+            var accessToken = await context.InstitutionAccessItems.Where(a => a.AccessUsers.Any(u => u.User.ExternalUserId == userId)).ToListAsync();
             return mapper.Map<List<InstitutionAccessTokenModel>>(accessToken);
         }
 
@@ -24,13 +24,13 @@ namespace Elysian.Infrastructure.Services
 
         public async Task<InstitutionAccessTokenModel> GetAccessTokenAsync(string userId, string itemId)
         {
-            var accessToken = await context.InstitutionAccessItems.FirstOrDefaultAsync(a => a.UserId == userId && a.ItemId == itemId);
+            var accessToken = await context.InstitutionAccessItems.FirstOrDefaultAsync(a => a.AccessUsers.Any(u => u.User.ExternalUserId == userId) && a.ItemId == itemId);
             return mapper.Map<InstitutionAccessTokenModel>(accessToken);
         }
 
         public async Task<InstitutionAccessTokenModel> GetAccessTokenAsync(string userId, int institutionAccessItemId)
         {
-            var accessToken = await context.InstitutionAccessItems.FirstOrDefaultAsync(a => a.UserId == userId && a.InstitutionAccessItemId == institutionAccessItemId);
+            var accessToken = await context.InstitutionAccessItems.FirstOrDefaultAsync(a => a.AccessUsers.Any(u => u.User.ExternalUserId == userId) && a.InstitutionAccessItemId == institutionAccessItemId);
             return mapper.Map<InstitutionAccessTokenModel>(accessToken);
         }
 
@@ -38,12 +38,20 @@ namespace Elysian.Infrastructure.Services
         {
             var userAccessItem = new InstitutionAccessItem
             {
-                UserId = userId,
                 AccessToken = accessToken,
                 ItemId = itemId,
                 InstitutionId = institutionId
             };
             await context.AddAsync(userAccessItem);
+            await context.SaveChangesAsync();
+
+            var user = await context.Users.FirstOrDefaultAsync(u => u.ExternalUserId == userId);
+            var accessUser = new InstitutionAccessItemUser
+            {
+                InstitutionAccessItemId = userAccessItem.InstitutionAccessItemId,
+                UserId = user.UserId
+            };
+            await context.AddAsync(accessUser);
             await context.SaveChangesAsync();
             return mapper.Map<InstitutionAccessTokenModel>(userAccessItem);
         }

@@ -20,6 +20,8 @@ namespace Elysian.Domain.Data
 
         public AccessControl AccessControl { get; set; }
 
+        public ICollection<InstitutionAccessItemUser> InstitutionAccessItemUsers { get; set; }
+
         public class Configuration : AuditableEntityConfiguration<User>
         {
             public override void Configure(EntityTypeBuilder<User> builder)

@@ -25,7 +25,10 @@ namespace Elysian.Infrastructure.Context
         public DbSet<BudgetCategory> BudgetCategories { get; set; }
         public DbSet<BudgetExcludedTransaction> BudgetExcludedTransactions { get; set; }
         public DbSet<FinancialCategory> FinancialCategories { get; set; }
+        public DbSet<IncomeSource> IncomeSources { get; set; }
+        public DbSet<IncomePayment> IncomePayments { get; set; }
         public DbSet<InstitutionAccessItem> InstitutionAccessItems { get; set; }
+        public DbSet<InstitutionAccessItemUser> InstitutionAccessItemUsers { get; set; }
         public DbSet<Merchant> Merchants { get; set; }
         public DbSet<MerchantType> MerchantTypes { get; set; }
         public DbSet<OAuthState> OAuthStates { get; set; }

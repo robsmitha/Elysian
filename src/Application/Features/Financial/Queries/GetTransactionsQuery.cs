@@ -7,61 +7,41 @@ using MediatR;
 
 namespace Elysian.Application.Features.Financial.Queries
 {
-    [Authorize(Policy = PolicyNames.BudgetRead)]
-    public record GetTransactionsQuery(int BudgetId) : IRequest<GetTransactionsQueryResponse>;
+    [Authorize(Policy = PolicyNames.IncomeRead)]
+    public record GetTransactionsQuery(int InstitutionAccessItemId) : IRequest<GetTransactionsResponse>;
 
-    public record GetTransactionsQueryResponse(List<TransactionModel> Transactions, List<ExpiredAccessItem> ExpiredAccessItems);
-
-    public class GetTransactionsQueryHandler(IFinancialService financialService, IAccessTokenService accessTokenService,
-        IBudgetService budgetService, ICategoryService categoryService, IClaimsPrincipalAccessor claimsPrincipalAccessor)
-        : IRequestHandler<GetTransactionsQuery, GetTransactionsQueryResponse>
+    public class GetTransactionsResponse(List<TransactionModel> transactions, bool expired)
     {
-        public async Task<GetTransactionsQueryResponse> Handle(GetTransactionsQuery request, CancellationToken cancellationToken)
+        public List<TransactionModel> Transactions { get; set; } = transactions;
+        public bool Expired { get; set; } = expired;
+    }
+
+    public class GetTransactionsQueryHandler(IClaimsPrincipalAccessor claimsPrincipalAccessor, IAccessTokenService accessTokenService,
+        IFinancialService financialService)
+        : IRequestHandler<GetTransactionsQuery, GetTransactionsResponse>
+    {
+        public async Task<GetTransactionsResponse> Handle(GetTransactionsQuery request, CancellationToken cancellationToken)
         {
-            var allTransactions = new List<TransactionModel>();
-            var expiredAccessItems = new List<ExpiredAccessItem>();
-            var budget = await budgetService.GetBudgetAsync(claimsPrincipalAccessor.UserId, request.BudgetId);
-            var accessTokens = await accessTokenService.GetBudgetAccessTokensAsync(claimsPrincipalAccessor.UserId, budget.BudgetId);
-            foreach (var accessToken in accessTokens)
+            var accessToken = await accessTokenService.GetAccessTokenAsync(claimsPrincipalAccessor.UserId, request.InstitutionAccessItemId);
+            var transactions = new List<TransactionModel>();
+            var expired = false;
+            try
             {
-                try
+                var endDate = DateTime.UtcNow;
+                var startDate = endDate.AddMonths(-24);
+
+                transactions = await financialService.GetTransactionsAsync(accessToken.AccessToken, startDate, endDate);
+            }
+            catch (FinancialServiceException fex)
+            {
+                if (string.Equals(fex.Error?.error_code, PlaidErrorCodes.ITEM_LOGIN_REQUIRED,
+                           StringComparison.InvariantCultureIgnoreCase))
                 {
-                    var transactions = await financialService.GetTransactionsAsync(accessToken.AccessToken, budget.StartDate, budget.EndDate);
-                    allTransactions.AddRange(transactions);
-                }
-                catch (FinancialServiceException fex)
-                {
-                    if (string.Equals(fex.Error?.error_code, PlaidErrorCodes.ITEM_LOGIN_REQUIRED,
-                               StringComparison.InvariantCultureIgnoreCase))
-                    {
-                        var institution = await financialService.GetInstitutionAsync(accessToken.InstitutionId);
-                        expiredAccessItems.Add(new ExpiredAccessItem(accessToken.AccessToken, fex.Error.error_message, institution));
-                    }
+                    expired = true;
                 }
             }
-            var transactionCategories = await categoryService.GetTransactionCategoriesAsync(claimsPrincipalAccessor.UserId, request.BudgetId);
-            var transactionCategoryData = from t in allTransactions
-                                          join c in transactionCategories on t.transaction_id equals c.TransactionId into tmpC
-                                          from c in tmpC.DefaultIfEmpty()
-                                          select new
-                                          {
-                                              Transaction = t,
-                                              Category = c == null
-                                              ? null
-                                              : new FinancialCategoryModel
-                                              {
-                                                  FinancialCategoryId = c.FinancialCategoryId,
-                                                  Name = c.FinancialCategoryName
-                                              }
-                                          };
-            return new GetTransactionsQueryResponse(
-                Transactions: transactionCategoryData.Select(d =>
-                {
-                    var transaction = d.Transaction;
-                    transaction.Category = d.Category;
-                    return transaction;
-                }).ToList(),
-                ExpiredAccessItems: expiredAccessItems);
+
+            return new GetTransactionsResponse(transactions, expired);
         }
     }
 }

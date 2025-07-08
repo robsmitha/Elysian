@@ -17,6 +17,10 @@ namespace Elysian.Domain.Security
         public const string CodeWrite = "code.write";
         public const string CodeDelete = "code.delete";
 
+        public const string IncomeRead = "income.read";
+        public const string IncomeWrite = "income.write";
+        public const string IncomeDelete = "income.delete";
+
         public const string ProductRead = "product.read";
         public const string ProductWrite = "product.write";
         public const string ProductDelete = "product.delete";
@@ -28,7 +32,7 @@ namespace Elysian.Domain.Security
         private static readonly Dictionary<string, (int Level, string[] Policies)> roleHierarchy = new(StringComparer.OrdinalIgnoreCase)
         {
             { RoleNames.Authenticated, (1,[CodeRead, CodeWrite, CodeDelete]) },
-            { RoleNames.MerchantAdmin, (100,[ProductRead, ProductWrite, ProductDelete, BudgetRead, BudgetWrite, BudgetDelete]) },
+            { RoleNames.MerchantAdmin, (100,[ProductRead, ProductWrite, ProductDelete, BudgetRead, BudgetWrite, BudgetDelete, IncomeRead, IncomeWrite, IncomeDelete]) },
             { RoleNames.SystemAdmin, (int.MaxValue,[UserRead, UserWrite, UserDelete]) }
         };
 
