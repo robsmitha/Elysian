@@ -102,6 +102,7 @@ namespace Elysian.Infrastructure
             services.AddTransient<ICategoryService, CategoryService>();
             services.AddTransient<IAccessTokenService, AccessTokenService>();
             services.AddTransient<IBudgetService, BudgetService>();
+            services.AddTransient<IIncomeService, IncomeService>();
             services.AddTransient<IFinancialService, PlaidService>();
             services.AddHttpClient("PlaidClient", (serviceProvider, httpClient) =>
             {
