@@ -21,9 +21,9 @@ namespace Elysian.Infrastructure.Services
             return mapper.Map<IncomeSourceModel>(incomeSource);
         }
 
-        public async Task<List<IncomeSourceModel>> GetIncomeSourcesAsync(string userId)
+        public async Task<List<IncomeSourceModel>> GetIncomeSourcesAsync(int institutionAccessItemId)
         {
-            var incomeSources = await context.IncomeSources.Where(b => b.InstitutionAccessItem.AccessUsers.Any(u => u.User.ExternalUserId == userId)).ToListAsync();
+            var incomeSources = await context.IncomeSources.Where(b => b.InstitutionAccessItemId == institutionAccessItemId).ToListAsync();
             return mapper.Map<List<IncomeSourceModel>>(incomeSources);
         }
 

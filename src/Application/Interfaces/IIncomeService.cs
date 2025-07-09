@@ -10,7 +10,7 @@ namespace Elysian.Application.Interfaces
     public interface IIncomeService
     {
         Task<IncomeSourceModel> GetIncomeSourceAsync(int incomeSourceId);
-        Task<List<IncomeSourceModel>> GetIncomeSourcesAsync(string userId);
+        Task<List<IncomeSourceModel>> GetIncomeSourcesAsync(int institutionAccessItemId);
         Task<List<IncomePaymentModel>> GetIncomePaymentsAsync(int incomeSourceId);
         Task<IncomeSourceModel> AddIncomeSourceAsync(IncomeSourceModel dto);
         Task<IncomeSourceModel> UpdateIncomeSourceAsync(IncomeSourceModel dto);
