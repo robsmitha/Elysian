@@ -18,13 +18,13 @@ namespace Elysian.Application.Features.Financial.Models
         public decimal Amount { get; set; }
         public string PaymentMemo { get; set; }
         public bool IsManualAdjustment { get; set; }
-        public bool IsExisting { get; set; }
+        public bool IsExisting => IncomePaymentId != 0;
 
         public class MappingProfile : Profile
         {
             public MappingProfile()
             {
-                CreateMap<IncomePayment, IncomePaymentModel>();
+                CreateMap<IncomePayment, IncomePaymentModel>().ReverseMap();
             }
         }
     }
