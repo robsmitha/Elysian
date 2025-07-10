@@ -24,7 +24,9 @@ namespace Elysian.Application.Features.Financial.Models
         {
             public MappingProfile()
             {
-                CreateMap<IncomePayment, IncomePaymentModel>().ReverseMap();
+                CreateMap<IncomePayment, IncomePaymentModel>()
+                    .ReverseMap()
+                    .ForMember(p => p.IncomeSource, opts => opts.Ignore());
             }
         }
     }
