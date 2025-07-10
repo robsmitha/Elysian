@@ -20,6 +20,7 @@ namespace Elysian.Application.Features.Financial.Models
         public bool HasTransactionCategory => Category != null;
         public FinancialCategoryModel Category { get; set; }
         public AccountModel Account { get; set; }
+        public IncomePaymentModel IncomePayment { get; set; }
 
 
         public class MappingProfile : Profile
@@ -28,7 +29,8 @@ namespace Elysian.Application.Features.Financial.Models
             {
                 CreateMap<TransactionResponse.Transaction, TransactionModel>()
                     .ForMember(dest => dest.Account, act => act.Ignore())
-                    .ForMember(dest => dest.Category, act => act.Ignore());
+                    .ForMember(dest => dest.Category, act => act.Ignore())
+                    .ForMember(dest => dest.IncomePayment, act => act.Ignore());
             }
         }
     }

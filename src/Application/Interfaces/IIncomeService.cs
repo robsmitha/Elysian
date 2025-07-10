@@ -12,6 +12,7 @@ namespace Elysian.Application.Interfaces
         Task<IncomeSourceModel> GetIncomeSourceAsync(int incomeSourceId);
         Task<List<IncomeSourceModel>> GetIncomeSourcesAsync(int institutionAccessItemId);
         Task<List<IncomePaymentModel>> GetIncomePaymentsAsync(int incomeSourceId);
+        Task<List<IncomePaymentModel>> GetIncomePaymentsByInstitutionAccessItemIdAsync(int institutionAccessItemId);
         Task<IncomeSourceModel> AddIncomeSourceAsync(IncomeSourceModel dto);
         Task<IncomeSourceModel> UpdateIncomeSourceAsync(IncomeSourceModel dto);
         Task DeleteIncomeSourceAsync(int incomeSourceId);

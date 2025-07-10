@@ -11,7 +11,13 @@ namespace Elysian.Infrastructure.Services
     {
         public async Task<List<IncomePaymentModel>> GetIncomePaymentsAsync(int incomeSourceId)
         {
-            var incomePayments = await context.IncomePayments.Where(i => i.IncomeSourceId == incomeSourceId).ToListAsync();
+            var incomePayments = await context.IncomePayments.Include(i => i.IncomeSource).Where(i => i.IncomeSourceId == incomeSourceId).ToListAsync();
+            return mapper.Map<List<IncomePaymentModel>>(incomePayments);
+        }
+
+        public async Task<List<IncomePaymentModel>> GetIncomePaymentsByInstitutionAccessItemIdAsync(int institutionAccessItemId)
+        {
+            var incomePayments = await context.IncomePayments.Include(i => i.IncomeSource).Where(i => i.IncomeSource.InstitutionAccessItemId == institutionAccessItemId).ToListAsync();
             return mapper.Map<List<IncomePaymentModel>>(incomePayments);
         }
 

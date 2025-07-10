@@ -13,6 +13,7 @@ namespace Elysian.Application.Features.Financial.Models
         public int IncomePaymentId { get; set; }
         public string TransactionId { get; set; }
         public int IncomeSourceId { get; set; }
+        public string IncomeSourceName { get; set; }
         public DateTime PaymentDate { get; set; }
         public decimal Amount { get; set; }
         public string PaymentMemo { get; set; }
