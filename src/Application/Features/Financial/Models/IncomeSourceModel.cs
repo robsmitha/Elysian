@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace Elysian.Application.Features.Financial.Models
@@ -18,7 +19,9 @@ namespace Elysian.Application.Features.Financial.Models
         public DateTime StartDate { get; set; }
         public DateTime? EndDate { get; set; }
         public decimal AmountDue { get; set; }
+        [JsonConverter(typeof(JsonStringEnumConverter))]
         public IncomeSourceType IncomeSourceType { get; set; }
+        [JsonConverter(typeof(JsonStringEnumConverter))]
         public PaymentFrequency PaymentFrequency { get; set; }
         public List<ExpectedPaymentMemo> ExpectedPaymentMemos { get; set; }
 
