@@ -33,7 +33,7 @@ namespace Elysian.Application.Features.Financial.Commands
                 && i.InstitutionAccessItem.AccessUsers.Any(a => a.User.ExternalUserId == _claimsPrincipalAccessor.UserId), cancellationToken: cancellationToken);
         }
     }
-    public class DeleteIncomeSourceCommandHandler(IncomeService incomeService) : IRequestHandler<DeleteIncomeSourceCommand>
+    public class DeleteIncomeSourceCommandHandler(IIncomeService incomeService) : IRequestHandler<DeleteIncomeSourceCommand>
     {
         public async Task Handle(DeleteIncomeSourceCommand request, CancellationToken cancellationToken) 
         { 

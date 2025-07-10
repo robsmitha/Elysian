@@ -40,7 +40,7 @@ namespace Elysian.Application.Features.Financial.Commands
         }
     }
 
-    public class SaveIncomePaymentCommandHandler(IncomeService incomeService) : IRequestHandler<SaveIncomePaymentCommand, IncomePaymentModel>
+    public class SaveIncomePaymentCommandHandler(IIncomeService incomeService) : IRequestHandler<SaveIncomePaymentCommand, IncomePaymentModel>
     {
         public async Task<IncomePaymentModel> Handle(SaveIncomePaymentCommand request, CancellationToken cancellationToken)
         {

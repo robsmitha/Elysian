@@ -58,7 +58,7 @@ namespace Elysian.Application.Features.Financial.Commands
         }
     }
 
-    public class SaveIncomeSourceCommandHandler(IncomeService incomeService) : IRequestHandler<SaveIncomeSourceCommand, IncomeSourceModel>
+    public class SaveIncomeSourceCommandHandler(IIncomeService incomeService) : IRequestHandler<SaveIncomeSourceCommand, IncomeSourceModel>
     {
         public async Task<IncomeSourceModel> Handle(SaveIncomeSourceCommand request, CancellationToken cancellationToken)
         {
