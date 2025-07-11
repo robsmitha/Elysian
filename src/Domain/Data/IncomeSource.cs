@@ -16,12 +16,12 @@ namespace Elysian.Domain.Data
         public int IncomeSourceId { get; set; }
         public int InstitutionAccessItemId { get; set; }
         public string Name { get; set; }
-        public string Description { get; set; }
-        public DateTime StartDate { get; set; }
+        public string? Description { get; set; }
+        public DateTime? StartDate { get; set; }
         public DateTime? EndDate { get; set; }
         public decimal AmountDue { get; set; }
+        public int? DayOfMonthDue { get; set; }
         public IncomeSourceType IncomeSourceType { get; set; }
-        public PaymentFrequency PaymentFrequency { get; set; } = PaymentFrequency.Monthly;
         public List<ExpectedPaymentMemo> ExpectedPaymentMemos { get; set; }
         public InstitutionAccessItem InstitutionAccessItem { get; set; }
         public ICollection<IncomePayment> IncomePayments { get; set; }
@@ -35,7 +35,6 @@ namespace Elysian.Domain.Data
                 builder.Property(b => b.Name).IsRequired();
                 builder.Property(b => b.AmountDue).HasColumnType("decimal(18,2)");
                 builder.Property(b => b.IncomeSourceType).HasConversion<string>().IsRequired();
-                builder.Property(b => b.PaymentFrequency).HasConversion<string>().IsRequired();
 
                 builder.HasOne(b => b.InstitutionAccessItem)
                     .WithMany()

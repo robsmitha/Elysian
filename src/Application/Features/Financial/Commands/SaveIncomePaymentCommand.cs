@@ -51,6 +51,11 @@ namespace Elysian.Application.Features.Financial.Commands
             }
             else
             {
+                if (!string.IsNullOrEmpty(request.IncomePayment.TransactionId))
+                {
+                    await incomeService.DeletePaymentByTransactionIdAsync(request.IncomePayment.TransactionId);
+                }
+
                 model = await incomeService.AddIncomePaymentAsync(request.IncomePayment);
             }
 

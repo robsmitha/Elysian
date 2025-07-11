@@ -3,6 +3,7 @@ using Elysian.Application.Features.Financial.Models;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
 using Elysian.Infrastructure.Context;
+using Humanizer;
 using Microsoft.EntityFrameworkCore;
 
 namespace Elysian.Infrastructure.Services
@@ -54,12 +55,19 @@ namespace Elysian.Infrastructure.Services
             incomeSource.StartDate = dto.StartDate;
             incomeSource.EndDate = dto.EndDate;
             incomeSource.AmountDue = dto.AmountDue;
-            incomeSource.PaymentFrequency = dto.PaymentFrequency;
+            incomeSource.DayOfMonthDue = dto.DayOfMonthDue;
             incomeSource.IncomeSourceType = dto.IncomeSourceType;
             incomeSource.ExpectedPaymentMemos = dto.ExpectedPaymentMemos;
 
             await context.SaveChangesAsync();
             return mapper.Map<IncomeSourceModel>(incomeSource);
+        }
+
+        public async Task DeletePaymentByTransactionIdAsync(string transactionId)
+        {
+            var incomePayment = await context.IncomePayments.FirstOrDefaultAsync(p => p.TransactionId == transactionId);
+            context.Remove(incomePayment!);
+            await context.SaveChangesAsync();
         }
 
         public async Task<IncomePaymentModel> AddIncomePaymentAsync(IncomePaymentModel dto)
