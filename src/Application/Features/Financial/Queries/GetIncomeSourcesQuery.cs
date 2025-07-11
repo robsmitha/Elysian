@@ -47,6 +47,25 @@ namespace Elysian.Application.Features.Financial.Queries
                 return now > dueDate && !CurrentMonthPaid;
             }
         }
+
+        public record MonthlyPayment(string Month, int Year, decimal PaidAmount, decimal AmountDue);
+        public List<MonthlyPayment> PaymentHistory =>
+            [.. Enumerable.Range(0, 12)
+                .Select(offset =>
+                {
+                    var monthDate = DateTime.UtcNow.AddMonths(-offset);
+                    var year = monthDate.Year;
+                    var month = monthDate.Month;
+
+                    var monthName = new DateTime(year, month, 1).ToString("MMMM");
+
+                    var amount = IncomePayments
+                        .Where(p => p.PaymentDate.Year == year && p.PaymentDate.Month == month)
+                        .Sum(p => p.Amount);
+
+                    return new MonthlyPayment(monthName, year, amount, IncomeSource.AmountDue);
+                })
+                .OrderBy(mp => new DateTime(mp.Year, DateTime.ParseExact(mp.Month, "MMMM", null).Month, 1))];
     }
 
     public class GetIncomeSourcesQueryValidator : AbstractValidator<GetIncomeSourcesQuery>
