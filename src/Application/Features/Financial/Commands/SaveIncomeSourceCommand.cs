@@ -38,9 +38,9 @@ namespace Elysian.Application.Features.Financial.Commands
                     .WithMessage("The financial account does not belong to this user.");
         }
 
-        public bool HaveValidDateRange(IncomeSourceModel incomeSource)
+        public static bool HaveValidDateRange(IncomeSourceModel incomeSource)
         {
-            return !incomeSource.EndDate.HasValue || incomeSource.StartDate <= incomeSource.EndDate;
+            return !incomeSource.StartDate.HasValue || !incomeSource.EndDate.HasValue || incomeSource.StartDate <= incomeSource.EndDate;
         }
 
         public async Task<bool> HaveUniqueNameAsync(IncomeSourceModel incomeSource,

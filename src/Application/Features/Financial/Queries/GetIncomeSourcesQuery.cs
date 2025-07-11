@@ -15,6 +15,38 @@ namespace Elysian.Application.Features.Financial.Queries
     {
         public IncomeSourceModel IncomeSource { get; set; } = incomeSource;
         public List<IncomePaymentModel> IncomePayments { get; set; } = incomePayments;
+
+        public decimal CurrentMonthPaymentTotal
+        {
+            get
+            {
+                var now = DateTime.UtcNow;
+                var startOfMonth = new DateTime(now.Year, now.Month, 1);
+                var endOfMonth = new DateTime(now.Year, now.Month, DateTime.DaysInMonth(now.Year, now.Month)).AddDays(1).AddTicks(-1);
+                
+                return IncomePayments
+                    .Where(p => p.PaymentDate >= startOfMonth && p.PaymentDate <= endOfMonth)
+                    .Sum(p => p.Amount);
+            }
+        }
+
+        public bool CurrentMonthPaid => CurrentMonthPaymentTotal >= IncomeSource.AmountDue;
+
+        public bool CurrentMonthPastDue
+        {
+            get
+            {
+                if (!IncomeSource.DayOfMonthDue.HasValue)
+                {
+                    return !CurrentMonthPaid;
+                }
+
+                var now = DateTime.UtcNow;
+                var dueDate = new DateTime(now.Year, now.Month, IncomeSource.DayOfMonthDue.Value);
+
+                return now > dueDate && !CurrentMonthPaid;
+            }
+        }
     }
 
     public class GetIncomeSourcesQueryValidator : AbstractValidator<GetIncomeSourcesQuery>
