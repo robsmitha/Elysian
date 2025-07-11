@@ -65,12 +65,7 @@ namespace Elysian.Infrastructure.Services
 
         public async Task DeletePaymentByTransactionIdAsync(string transactionId)
         {
-            var incomePayment = await context.IncomePayments.FirstOrDefaultAsync(p => p.TransactionId == transactionId);
-            if (incomePayment != null)
-            {
-                context.Remove(incomePayment);
-                await context.SaveChangesAsync();
-            }
+            await context.IncomePayments.Where(i => i.TransactionId == transactionId).ExecuteDeleteAsync();
         }
 
         public async Task<IncomePaymentModel> AddIncomePaymentAsync(IncomePaymentModel dto)
@@ -87,6 +82,7 @@ namespace Elysian.Infrastructure.Services
             incomePayment.PaymentMemo = dto.PaymentMemo;
             incomePayment.PaymentDate = dto.PaymentDate;
             incomePayment.Amount = dto.Amount;
+            incomePayment.IncomeSourceId = dto.IncomeSourceId;
 
             await context.SaveChangesAsync();
             return mapper.Map<IncomePaymentModel>(incomePayment);
