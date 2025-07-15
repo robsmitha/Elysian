@@ -16,6 +16,22 @@ namespace Elysian.Application.Features.Financial.Queries
         public IncomeSourceModel IncomeSource { get; set; } = incomeSource;
         public List<IncomePaymentModel> IncomePayments { get; set; } = incomePayments;
 
+        public DateTime DueDate
+        {
+            get
+            {
+                var now = DateTime.UtcNow;
+                if (!IncomeSource.DayOfMonthDue.HasValue)
+                {
+                    return new DateTime(now.Year, now.Month, 1);
+                }
+
+                return new DateTime(now.Year, now.Month, IncomeSource.DayOfMonthDue.Value);
+            }
+        }
+
+        public DateTime PastDueDate => DueDate.AddDays(3);
+
         public decimal CurrentMonthPaymentTotal
         {
             get
@@ -32,21 +48,7 @@ namespace Elysian.Application.Features.Financial.Queries
 
         public bool CurrentMonthPaid => CurrentMonthPaymentTotal >= IncomeSource.AmountDue;
 
-        public bool CurrentMonthPastDue
-        {
-            get
-            {
-                if (!IncomeSource.DayOfMonthDue.HasValue)
-                {
-                    return !CurrentMonthPaid;
-                }
-
-                var now = DateTime.UtcNow;
-                var dueDate = new DateTime(now.Year, now.Month, IncomeSource.DayOfMonthDue.Value);
-
-                return now > dueDate && !CurrentMonthPaid;
-            }
-        }
+        public bool CurrentMonthPastDue => DateTime.UtcNow > PastDueDate && !CurrentMonthPaid;
 
         public record MonthlyPayment(string Month, int Year, decimal PaidAmount, decimal AmountDue);
         public List<MonthlyPayment> PaymentHistory =>
@@ -65,7 +67,7 @@ namespace Elysian.Application.Features.Financial.Queries
 
                     return new MonthlyPayment(monthName, year, amount, IncomeSource.AmountDue);
                 })
-                .OrderBy(mp => new DateTime(mp.Year, DateTime.ParseExact(mp.Month, "MMMM", null).Month, 1))];
+                .OrderByDescending(mp => new DateTime(mp.Year, DateTime.ParseExact(mp.Month, "MMMM", null).Month, 1))];
     }
 
     public class GetIncomeSourcesQueryValidator : AbstractValidator<GetIncomeSourcesQuery>
