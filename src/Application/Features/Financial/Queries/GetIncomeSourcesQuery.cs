@@ -24,11 +24,11 @@ namespace Elysian.Application.Features.Financial.Queries
                     var year = dateValue.Year;
                     var month = dateValue.Month;
                     var monthName = new DateTime(year, month, 1).ToString("MMMM");
-                    return new MonthlyTimelineListItem($"{monthName} {year}", Year, Month);
+                    return new MonthlyTimelineListItem($"{monthName} {year}", Month, Year);
                 }).OrderByDescending(x => x)];
 
-        private List<IncomePaymentModel> MonthlyTimelinePayments => IncomeSources.SelectMany(p => p.IncomePayments)
-            .Where(p => p.PaymentDate.Month == Month && p.PaymentDate.Year == Year).ToList();
+        private List<IncomePaymentModel> MonthlyTimelinePayments => [.. IncomeSources.SelectMany(p => p.IncomePayments)
+            .Where(p => p.PaymentDate.Month == Month && p.PaymentDate.Year == Year)];
 
         public decimal TotalPaid => MonthlyTimelinePayments.Sum(d => d.Amount);
         public decimal TotalDue => IncomeSources.Sum(d => d.IncomeSource.AmountDue);
@@ -45,7 +45,7 @@ namespace Elysian.Application.Features.Financial.Queries
         private int Month { get; set; } = month;
         private int Year { get; set; } = year;
 
-        public MonthlyTimelineListItem MonthlyTimeline => new(new DateTime(Year, Month, 1).ToString("MMMM"), Year, Month);
+        public MonthlyTimelineListItem MonthlyTimeline => new(new DateTime(Year, Month, 1).ToString("MMMM"), Month, Year);
         public DateTime DueDate
         {
             get
