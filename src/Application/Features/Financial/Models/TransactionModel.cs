@@ -21,7 +21,22 @@ namespace Elysian.Application.Features.Financial.Models
         public FinancialCategoryModel Category { get; set; }
         public AccountModel Account { get; set; }
         public IncomePaymentModel IncomePayment { get; set; }
+        public MonthlyTimelineListItem? MonthlyTimeline
+        {
+            get
+            {
+                if(!DateTime.TryParse(date, out var dateValue))
+                {
+                    return null;
+                }
 
+                var year = dateValue.Year;
+                var month = dateValue.Month;
+
+                var monthName = new DateTime(year, month, 1).ToString("MMMM");
+                return new MonthlyTimelineListItem($"{monthName} {year}", year, month);
+            }
+        }
 
         public class MappingProfile : Profile
         {

@@ -9,24 +9,53 @@ using Microsoft.EntityFrameworkCore;
 namespace Elysian.Application.Features.Financial.Queries
 {
     [Authorize(Policy = PolicyNames.IncomeRead)]
-    public record GetIncomeSourcesQuery(int InstitutionAccessItemId) : IRequest<List<IncomeSourceListItem>>;
+    public record GetIncomeSourcesQuery(int InstitutionAccessItemId, int? Month, int? Year) : IRequest<GetIncomeSourcesResponse>;
 
-    public class IncomeSourceListItem(IncomeSourceModel incomeSource, List<IncomePaymentModel> incomePayments)
+    public class GetIncomeSourcesResponse(List<IncomeSourceListItem> incomeSources, int month, int year)
+    {
+        public List<IncomeSourceListItem> IncomeSources { get; set; } = incomeSources;
+        private int Month { get; set; } = month;
+        private int Year { get; set; } = year;
+        public MonthlyTimelineListItem MonthlyTimeline => new(new DateTime(Year, Month, 1).ToString("MMMM"), Month, Year);
+        public List<MonthlyTimelineListItem> MonthlyTimelineList => [.. Enumerable.Range(0, 12)
+                .Select(offset =>
+                {
+                    var dateValue = DateTime.UtcNow.AddMonths(-offset);
+                    var year = dateValue.Year;
+                    var month = dateValue.Month;
+                    var monthName = new DateTime(year, month, 1).ToString("MMMM");
+                    return new MonthlyTimelineListItem($"{monthName} {year}", Year, Month);
+                }).OrderByDescending(x => x)];
+
+        private List<IncomePaymentModel> MonthlyTimelinePayments => IncomeSources.SelectMany(p => p.IncomePayments)
+            .Where(p => p.PaymentDate.Month == Month && p.PaymentDate.Year == Year).ToList();
+
+        public decimal TotalPaid => MonthlyTimelinePayments.Sum(d => d.Amount);
+        public decimal TotalDue => IncomeSources.Sum(d => d.IncomeSource.AmountDue);
+        public decimal TotalOverdue => IncomeSources.Where(i => !i.CurrentMonthPaid).Sum(d => d.IncomeSource.AmountDue);
+        public DateTime? NextDueDate => IncomeSources.Select(d => d.DueDate)
+            .Where(d => d.Date >= DateTime.Today).OrderBy(d => d).FirstOrDefault();
+    }
+
+    public class IncomeSourceListItem(IncomeSourceModel incomeSource, List<IncomePaymentModel> incomePayments, int month, int year)
     {
         public IncomeSourceModel IncomeSource { get; set; } = incomeSource;
         public List<IncomePaymentModel> IncomePayments { get; set; } = incomePayments;
 
+        private int Month { get; set; } = month;
+        private int Year { get; set; } = year;
+
+        public MonthlyTimelineListItem MonthlyTimeline => new(new DateTime(Year, Month, 1).ToString("MMMM"), Year, Month);
         public DateTime DueDate
         {
             get
             {
-                var now = DateTime.UtcNow;
                 if (!IncomeSource.DayOfMonthDue.HasValue)
                 {
-                    return new DateTime(now.Year, now.Month, 1);
+                    return new DateTime(Year, Month, 1);
                 }
 
-                return new DateTime(now.Year, now.Month, IncomeSource.DayOfMonthDue.Value);
+                return new DateTime(Year, Month, IncomeSource.DayOfMonthDue.Value);
             }
         }
 
@@ -36,9 +65,8 @@ namespace Elysian.Application.Features.Financial.Queries
         {
             get
             {
-                var now = DateTime.UtcNow;
-                var startOfMonth = new DateTime(now.Year, now.Month, 1);
-                var endOfMonth = new DateTime(now.Year, now.Month, DateTime.DaysInMonth(now.Year, now.Month)).AddDays(1).AddTicks(-1);
+                var startOfMonth = new DateTime(Year, Month, 1);
+                var endOfMonth = new DateTime(Year, Month, DateTime.DaysInMonth(Year, Month)).AddDays(1).AddTicks(-1);
                 
                 return IncomePayments
                     .Where(p => p.PaymentDate >= startOfMonth && p.PaymentDate <= endOfMonth)
@@ -50,7 +78,7 @@ namespace Elysian.Application.Features.Financial.Queries
 
         public bool CurrentMonthPastDue => DateTime.UtcNow > PastDueDate && !CurrentMonthPaid;
 
-        public record MonthlyPayment(string Month, int Year, decimal PaidAmount, decimal AmountDue);
+        public record MonthlyPayment(string Month, int Year, decimal PaidAmount, decimal AmountDue, DateTime DueDate);
         public List<MonthlyPayment> PaymentHistory =>
             [.. Enumerable.Range(0, 12)
                 .Select(offset =>
@@ -65,7 +93,8 @@ namespace Elysian.Application.Features.Financial.Queries
                         .Where(p => p.PaymentDate.Year == year && p.PaymentDate.Month == month)
                         .Sum(p => p.Amount);
 
-                    return new MonthlyPayment(monthName, year, amount, IncomeSource.AmountDue);
+                    var dueDate = new DateTime(year, month, DueDate.Day);
+                    return new MonthlyPayment(monthName, year, amount, IncomeSource.AmountDue, dueDate);
                 })
                 .OrderByDescending(mp => new DateTime(mp.Year, DateTime.ParseExact(mp.Month, "MMMM", null).Month, 1))];
     }
@@ -94,27 +123,25 @@ namespace Elysian.Application.Features.Financial.Queries
     }
 
     public class GetIncomeSourcesQueryHandler(IIncomeService incomeService) 
-        : IRequestHandler<GetIncomeSourcesQuery, List<IncomeSourceListItem>>
+        : IRequestHandler<GetIncomeSourcesQuery, GetIncomeSourcesResponse>
     {
-        public async Task<List<IncomeSourceListItem>> Handle(GetIncomeSourcesQuery request, CancellationToken cancellationToken)
+        public async Task<GetIncomeSourcesResponse> Handle(GetIncomeSourcesQuery request, CancellationToken cancellationToken)
         {
             var incomeSourceList = new List<IncomeSourceListItem>();
+
+            var now = DateTime.UtcNow;
+            var month = request.Month ?? now.Month;
+            var year = request.Year ?? now.Year;
 
             var incomeSources = await incomeService.GetIncomeSourcesAsync(request.InstitutionAccessItemId);
             foreach (var incomeSource in incomeSources)
             {
-                var item = await GetIncomeSourceItemAsync(incomeSource);
+                var incomePayments = await incomeService.GetIncomePaymentsAsync(incomeSource.IncomeSourceId);
 
-                incomeSourceList.Add(item);
+                incomeSourceList.Add(new(incomeSource, incomePayments, month, year));
             }
-            return incomeSourceList;
-        }
 
-        private async Task<IncomeSourceListItem> GetIncomeSourceItemAsync(IncomeSourceModel incomeSource)
-        {
-            var incomePayments = await incomeService.GetIncomePaymentsAsync(incomeSource.IncomeSourceId);
-
-            return new IncomeSourceListItem(incomeSource, incomePayments);
+            return new (incomeSourceList, month, year);
         }
     }
 }

@@ -11,7 +11,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Elysian.Application.Features.Financial.Queries
 {
     [Authorize(Policy = PolicyNames.IncomeRead)]
-    public record GetIncomeTransactionsQuery(int InstitutionAccessItemId) : IRequest<GetIncomeTransactionsResponse>;
+    public record GetIncomeTransactionsQuery(int InstitutionAccessItemId, 
+        DateTime? StartDate = null, DateTime? EndDate = null) : IRequest<GetIncomeTransactionsResponse>;
 
     public class GetIncomeTransactionsResponse(List<TransactionModel> transactions, bool expired, string institutionName)
     {
@@ -33,6 +34,23 @@ namespace Elysian.Application.Features.Financial.Queries
                 .NotEmpty()
                 .MustAsync(BelongsToUserAsync)
                     .WithMessage("The financial account does not belong to this user.");
+            
+            RuleFor(v => v)
+                .Must(query =>
+                    (query.StartDate.HasValue && query.EndDate.HasValue) ||
+                    (!query.StartDate.HasValue && !query.EndDate.HasValue)
+                )
+                .WithMessage("StartDate and EndDate must both be provided or both be null.");
+
+            RuleFor(v => v)
+                .Must(query =>
+                {
+                    if (query.StartDate == null || query.EndDate == null)
+                        return true;
+
+                    return query.EndDate <= query.StartDate.Value.AddYears(2);
+                })
+                .WithMessage("The date range cannot exceed 2 years.");
         }
 
         public async Task<bool> BelongsToUserAsync(int institutionAccessItemId,
@@ -56,8 +74,8 @@ namespace Elysian.Application.Features.Financial.Queries
             try
             {
 
-                var endDate = DateTime.UtcNow;
-                var startDate = endDate.AddMonths(-24);
+                var endDate = request.EndDate ?? DateTime.UtcNow;
+                var startDate = request.StartDate ?? endDate.AddMonths(-24);
 
                 transactions = await financialService.GetTransactionsAsync(accessToken.AccessToken, startDate, endDate);
             }
