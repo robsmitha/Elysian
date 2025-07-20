@@ -11,4 +11,6 @@ namespace Elysian.Application.Features.Financial.Models
         public DateTime StartOfMonth => new (Year, Month, 1);
         public DateTime EndOfMonth => new DateTime(Year, Month, DateTime.DaysInMonth(Year, Month)).AddDays(1).AddTicks(-1);
     }
+
+    public record MonthlyPayment(string Month, int Year, decimal PaidAmount, decimal AmountDue, DateTime DueDate);
 }

@@ -17,15 +17,19 @@ namespace Elysian.Application.Features.Financial.Queries
         private int Month { get; set; } = month;
         private int Year { get; set; } = year;
         public MonthlyTimelineListItem MonthlyTimeline => new(new DateTime(Year, Month, 1).ToString("MMMM"), Month, Year);
-        public List<MonthlyTimelineListItem> MonthlyTimelineList => [.. Enumerable.Range(0, 12)
-                .Select(offset =>
-                {
-                    var dateValue = DateTime.UtcNow.AddMonths(-offset);
-                    var year = dateValue.Year;
-                    var month = dateValue.Month;
-                    var monthName = new DateTime(year, month, 1).ToString("MMMM");
-                    return new MonthlyTimelineListItem($"{monthName} {year}", Month, Year);
-                }).OrderByDescending(x => x)];
+        public List<MonthlyTimelineListItem> MonthlyTimelineList =>
+            [.. Enumerable.Range(0, 12)
+            .Select(offset =>
+            {
+                var dateValue = DateTime.UtcNow.AddMonths(-offset);
+                var year = dateValue.Year;
+                var month = dateValue.Month;
+                var monthName = new DateTime(year, month, 1).ToString("MMMM");
+                return new MonthlyTimelineListItem($"{monthName} {year}", year, month);
+            })
+            .OrderByDescending(x => x.Year)
+            .ThenByDescending(x => x.Month)];
+
 
         private List<IncomePaymentModel> MonthlyTimelinePayments => [.. IncomeSources.SelectMany(p => p.IncomePayments)
             .Where(p => p.PaymentDate.Month == Month && p.PaymentDate.Year == Year)];
@@ -78,7 +82,6 @@ namespace Elysian.Application.Features.Financial.Queries
 
         public bool CurrentMonthPastDue => DateTime.UtcNow > PastDueDate && !CurrentMonthPaid;
 
-        public record MonthlyPayment(string Month, int Year, decimal PaidAmount, decimal AmountDue, DateTime DueDate);
         public List<MonthlyPayment> PaymentHistory =>
             [.. Enumerable.Range(0, 12)
                 .Select(offset =>
