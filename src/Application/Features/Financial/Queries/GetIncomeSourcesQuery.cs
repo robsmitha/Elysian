@@ -25,7 +25,7 @@ namespace Elysian.Application.Features.Financial.Queries
                 var year = dateValue.Year;
                 var month = dateValue.Month;
                 var monthName = new DateTime(year, month, 1).ToString("MMMM");
-                return new MonthlyTimelineListItem($"{monthName} {year}", year, month);
+                return new MonthlyTimelineListItem($"{monthName} {year}", month, year);
             })
             .OrderByDescending(x => x.Year)
             .ThenByDescending(x => x.Month)];
