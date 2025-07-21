@@ -16,7 +16,7 @@ namespace Elysian.Application.Features.Financial.Queries
         public List<IncomeSourceListItem> IncomeSources { get; set; } = incomeSources;
         private int Month { get; set; } = month;
         private int Year { get; set; } = year;
-        public MonthlyTimelineListItem MonthlyTimeline => new(new DateTime(Year, Month, 1).ToString("MMMM"), Month, Year);
+        public MonthlyTimelineListItem MonthlyTimeline => new($"{new DateTime(Year, Month, 1):MMMM} {Year}", Month, Year);
         public List<MonthlyTimelineListItem> MonthlyTimelineList =>
             [.. Enumerable.Range(0, 12)
             .Select(offset =>
