@@ -136,7 +136,10 @@ namespace Elysian.Application.Features.Financial.Queries
             var month = request.Month ?? now.Month;
             var year = request.Year ?? now.Year;
 
-            var incomeSources = await incomeService.GetIncomeSourcesAsync(request.InstitutionAccessItemId);
+            var startOfMonth = new DateTime(year, month, 1);
+            var endOfMonth = new DateTime(year, month, DateTime.DaysInMonth(year, month)).AddDays(1).AddTicks(-1);
+
+            var incomeSources = await incomeService.GetIncomeSourcesAsync(request.InstitutionAccessItemId, startOfMonth, endOfMonth);
             foreach (var incomeSource in incomeSources)
             {
                 var incomePayments = await incomeService.GetIncomePaymentsAsync(incomeSource.IncomeSourceId);
