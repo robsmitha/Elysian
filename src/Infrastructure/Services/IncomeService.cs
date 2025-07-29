@@ -32,7 +32,7 @@ namespace Elysian.Infrastructure.Services
         {
             var incomeSources = await context.IncomeSources
                 .Where(b => b.InstitutionAccessItemId == institutionAccessItemId
-                && b.StartDate >= startDate && b.EndDate <= endDate)
+                && b.StartDate <= startDate && b.EndDate >= endDate)
                 .ToListAsync();
             return mapper.Map<List<IncomeSourceModel>>(incomeSources);
         }
