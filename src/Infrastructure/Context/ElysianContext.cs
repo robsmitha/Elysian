@@ -33,6 +33,7 @@ namespace Elysian.Infrastructure.Context
         public DbSet<MerchantType> MerchantTypes { get; set; }
         public DbSet<OAuthState> OAuthStates { get; set; }
         public DbSet<OAuthToken> OAuthTokens { get; set; }
+        public DbSet<Photo> Photos { get; set; }
         public DbSet<PriceType> PriceTypes { get; set; }
         public DbSet<Product> Products { get; set; }
         public DbSet<ProductImage> ProductImages { get; set; }
