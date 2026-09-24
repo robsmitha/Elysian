@@ -122,5 +122,15 @@ namespace Elysian.Infrastructure
                 })
                 .AddScoped<IAzureStorageClient, AzureStorageClient>();
         }
+
+        /// <summary>
+        /// Photo upload/processing/portfolio features. Requires <see cref="AddAzureStorageFeatures"/>.
+        /// </summary>
+        public static IServiceCollection AddPhotoFeatures(this IServiceCollection services, IConfiguration configuration)
+        {
+            return services.Configure<PhotoStorageSettings>(configuration.GetSection(nameof(PhotoStorageSettings)))
+                .AddScoped<IPhotoStorage, AzurePhotoStorage>()
+                .AddSingleton<IPhotoProcessor, ImageSharpPhotoProcessor>();
+        }
     }
 }
