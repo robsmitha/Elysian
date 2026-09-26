@@ -56,7 +56,8 @@ namespace Elysian.Application.Features.Photos.Commands
             }
 
             var photo = await context.Photos.AsNoTracking().SingleAsync(p => p.PhotoId == request.PhotoId, cancellationToken);
-            return photo.ToModel(photoStorage, multiTenantContextAccessor.MultiTenantContext.TenantInfo!.Identifier!);
+            var placements = await context.GetPlacementLookupAsync(cancellationToken, photo.PhotoId);
+            return photo.ToModel(photoStorage, multiTenantContextAccessor.MultiTenantContext.TenantInfo!.Identifier!, placements);
         }
     }
 }

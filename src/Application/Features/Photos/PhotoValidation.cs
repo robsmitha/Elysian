@@ -8,8 +8,8 @@ namespace Elysian.Application.Features.Photos
         public const string CategoryPattern = "^[a-z0-9-]{1,64}$";
 
         /// <summary>
-        /// Placement key used by the frontend, e.g. "aspenPortrait" or "hero-1"
+        /// Spot key defined by the site, e.g. "home-intro" or "portfolio-cover-weddings"
         /// </summary>
-        public const string SlotPattern = "^[A-Za-z0-9-]{1,64}$";
+        public const string PlacementKeyPattern = "^[a-z0-9-]{1,64}$";
     }
 }
