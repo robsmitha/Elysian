@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Elysian.Application.Features.Photos.Commands
 {
     /// <summary>
-    /// Soft-deletes the record and removes the original and every variant from storage
+    /// Soft-deletes the record, clears the spots it filled, and removes the original and every variant from storage
     /// </summary>
     [Authorize(Policy = PolicyNames.PhotoDelete)]
     public record DeletePhotoCommand(Guid PhotoId) : IRequest<bool>;
@@ -41,7 +41,7 @@ namespace Elysian.Application.Features.Photos.Commands
         {
             var photo = await context.Photos.SingleAsync(p => p.PhotoId == request.PhotoId, cancellationToken);
             photo.IsDeleted = true;
-            photo.Slot = null;
+            await context.ClearSpotsForPhotoAsync(photo.PhotoId, cancellationToken);
             await context.SaveChangesAsync(cancellationToken);
 
             var tenantIdentifier = multiTenantContextAccessor.MultiTenantContext.TenantInfo!.Identifier!;

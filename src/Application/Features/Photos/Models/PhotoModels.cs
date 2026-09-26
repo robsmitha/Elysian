@@ -1,5 +1,7 @@
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
+using Elysian.Infrastructure.Context;
+using Microsoft.EntityFrameworkCore;
 
 namespace Elysian.Application.Features.Photos.Models
 {
@@ -10,7 +12,7 @@ namespace Elysian.Application.Features.Photos.Models
     public record PortfolioPhotoModel(
         Guid Id,
         string Category,
-        string? Slot,
+        List<string> Placements,
         int SortOrder,
         string? AltText,
         int Width,
@@ -24,7 +26,7 @@ namespace Elysian.Application.Features.Photos.Models
     public record PhotoModel(
         Guid Id,
         string Category,
-        string? Slot,
+        List<string> Placements,
         int SortOrder,
         string? AltText,
         int? Width,
@@ -42,18 +44,36 @@ namespace Elysian.Application.Features.Photos.Models
 
     public static class PhotoModelMappings
     {
+        /// <summary>
+        /// Spot keys per photo, for filling <see cref="PhotoModel.Placements"/>
+        /// </summary>
+        public static async Task<ILookup<Guid, string>> GetPlacementLookupAsync(this ElysianContext context,
+            CancellationToken cancellationToken, params Guid[] photoIds)
+        {
+            var query = context.Placements.AsNoTracking();
+            if (photoIds.Length > 0)
+            {
+                query = query.Where(p => photoIds.Contains(p.PhotoId));
+            }
+
+            var rows = await query.Select(p => new { p.PhotoId, p.Key }).ToListAsync(cancellationToken);
+            return rows.ToLookup(r => r.PhotoId, r => r.Key);
+        }
+
         public static string? SrcBase(this Photo photo, IPhotoStorage photoStorage, string tenantIdentifier) =>
             photo.Version > 0
                 ? photoStorage.GetPublicUrl(PhotoPaths.VersionFolder(tenantIdentifier, photo.PhotoId, photo.Version))
                 : null;
 
-        public static PortfolioPhotoModel ToPortfolioModel(this Photo photo, IPhotoStorage photoStorage, string tenantIdentifier) =>
-            new(photo.PhotoId, photo.Category, photo.Slot, photo.SortOrder, photo.AltText,
+        public static PortfolioPhotoModel ToPortfolioModel(this Photo photo, IPhotoStorage photoStorage, string tenantIdentifier,
+            ILookup<Guid, string> placements) =>
+            new(photo.PhotoId, photo.Category, placements[photo.PhotoId].Order().ToList(), photo.SortOrder, photo.AltText,
                 photo.Width ?? 0, photo.Height ?? 0, photo.FocusX, photo.FocusY, photo.Placeholder,
                 photo.SrcBase(photoStorage, tenantIdentifier)!, photo.VariantWidths);
 
-        public static PhotoModel ToModel(this Photo photo, IPhotoStorage photoStorage, string tenantIdentifier) =>
-            new(photo.PhotoId, photo.Category, photo.Slot, photo.SortOrder, photo.AltText,
+        public static PhotoModel ToModel(this Photo photo, IPhotoStorage photoStorage, string tenantIdentifier,
+            ILookup<Guid, string> placements) =>
+            new(photo.PhotoId, photo.Category, placements[photo.PhotoId].Order().ToList(), photo.SortOrder, photo.AltText,
                 photo.Width, photo.Height, photo.FocusX, photo.FocusY, photo.Placeholder,
                 photo.SrcBase(photoStorage, tenantIdentifier), photo.VariantWidths,
                 photo.Status.ToString(), photo.ProcessingError, photo.OriginalFileName, photo.OriginalFileSize, photo.CreatedAt);

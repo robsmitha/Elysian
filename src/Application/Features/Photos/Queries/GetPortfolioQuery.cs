@@ -34,7 +34,9 @@ namespace Elysian.Application.Features.Photos.Queries
                 .ThenBy(p => p.CreatedAt)
                 .ToListAsync(cancellationToken);
 
-            return photos.Select(p => p.ToPortfolioModel(photoStorage, tenantIdentifier)).ToList();
+            var placements = await context.GetPlacementLookupAsync(cancellationToken);
+
+            return photos.Select(p => p.ToPortfolioModel(photoStorage, tenantIdentifier, placements)).ToList();
         }
     }
 }

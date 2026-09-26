@@ -18,10 +18,6 @@ namespace Elysian.Domain.Data
         /// </summary>
         public string Category { get; set; }
 
-        /// <summary>
-        /// Optional named placement, e.g. "hero-1" or "aspenPortrait", unique per tenant
-        /// </summary>
-        public string? Slot { get; set; }
         public int SortOrder { get; set; }
         public string? AltText { get; set; }
 
@@ -67,11 +63,6 @@ namespace Elysian.Domain.Data
                 builder.Property(e => e.PhotoId).ValueGeneratedNever();
 
                 builder.Property(e => e.Category).IsRequired().HasMaxLength(64);
-                builder.Property(e => e.Slot).HasMaxLength(64);
-                builder.HasIndex(["Slot", "TenantId"])
-                    .IsUnique()
-                    .HasDatabaseName("AK_Photo_Slot")
-                    .HasFilter($"[{nameof(Slot)}] IS NOT NULL AND [{nameof(IsDeleted)}] = 0");
                 builder.HasIndex(["Category", "SortOrder"]).HasDatabaseName("IX_Photo_Category_SortOrder");
 
                 builder.Property(e => e.AltText).HasMaxLength(512);

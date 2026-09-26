@@ -11,11 +11,12 @@ using Microsoft.EntityFrameworkCore;
 namespace Elysian.Application.Features.Photos.Commands
 {
     /// <summary>
-    /// Updates editable metadata. Assigning a slot another photo holds moves the slot to this photo.
+    /// Updates editable metadata. When <see cref="Placements"/> is given it becomes the complete set of
+    /// spots this photo fills; spots another photo filled move to this one. Null leaves placements unchanged.
     /// </summary>
     [Authorize(Policy = PolicyNames.PhotoWrite)]
-    public record UpdatePhotoCommand(Guid PhotoId, string Category, string? Slot, string? AltText,
-        double FocusX, double FocusY) : IRequest<PhotoModel>;
+    public record UpdatePhotoCommand(Guid PhotoId, string Category, string? AltText,
+        double FocusX, double FocusY, List<string>? Placements = null) : IRequest<PhotoModel>;
 
     public class UpdatePhotoCommandValidator : AbstractValidator<UpdatePhotoCommand>
     {
@@ -33,13 +34,16 @@ namespace Elysian.Application.Features.Photos.Commands
                 .NotEmpty()
                 .Matches(PhotoValidation.CategoryPattern);
 
-            RuleFor(v => v.Slot)
-                .Matches(PhotoValidation.SlotPattern)
-                .When(v => !string.IsNullOrEmpty(v.Slot));
-
             RuleFor(v => v.AltText).MaximumLength(512);
             RuleFor(v => v.FocusX).InclusiveBetween(0, 1);
             RuleFor(v => v.FocusY).InclusiveBetween(0, 1);
+
+            RuleFor(v => v.Placements!.Count)
+                .LessThanOrEqualTo(50)
+                .When(v => v.Placements != null);
+            RuleForEach(v => v.Placements)
+                .NotEmpty()
+                .Matches(PhotoValidation.PlacementKeyPattern);
         }
 
         public async Task<bool> BeExistingPhoto(Guid photoId, CancellationToken cancellationToken)
@@ -55,18 +59,6 @@ namespace Elysian.Application.Features.Photos.Commands
         public async Task<PhotoModel> Handle(UpdatePhotoCommand request, CancellationToken cancellationToken)
         {
             var photo = await context.Photos.SingleAsync(p => p.PhotoId == request.PhotoId, cancellationToken);
-            var slot = string.IsNullOrWhiteSpace(request.Slot) ? null : request.Slot.Trim();
-
-            if (slot != null && slot != photo.Slot)
-            {
-                var holder = await context.Photos.SingleOrDefaultAsync(p => p.Slot == slot, cancellationToken);
-                if (holder != null)
-                {
-                    holder.Slot = null;
-                    // Release the unique slot before claiming it
-                    await context.SaveChangesAsync(cancellationToken);
-                }
-            }
 
             if (photo.Category != request.Category)
             {
@@ -77,13 +69,19 @@ namespace Elysian.Application.Features.Photos.Commands
             }
 
             photo.Category = request.Category;
-            photo.Slot = slot;
             photo.AltText = string.IsNullOrWhiteSpace(request.AltText) ? null : request.AltText.Trim();
             photo.FocusX = request.FocusX;
             photo.FocusY = request.FocusY;
+
+            if (request.Placements != null)
+            {
+                await context.SetSpotsForPhotoAsync(photo.PhotoId, request.Placements, cancellationToken);
+            }
+
             await context.SaveChangesAsync(cancellationToken);
 
-            return photo.ToModel(photoStorage, multiTenantContextAccessor.MultiTenantContext.TenantInfo!.Identifier!);
+            var placements = await context.GetPlacementLookupAsync(cancellationToken, photo.PhotoId);
+            return photo.ToModel(photoStorage, multiTenantContextAccessor.MultiTenantContext.TenantInfo!.Identifier!, placements);
         }
     }
 }
