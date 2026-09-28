@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Resend;
 
 namespace Elysian.Infrastructure
 {
@@ -131,6 +132,23 @@ namespace Elysian.Infrastructure
             return services.Configure<PhotoStorageSettings>(configuration.GetSection(nameof(PhotoStorageSettings)))
                 .AddScoped<IPhotoStorage, AzurePhotoStorage>()
                 .AddSingleton<IPhotoProcessor, ImageSharpPhotoProcessor>();
+        }
+
+        /// <summary>
+        /// Public contact form: Turnstile verification and delivery through Resend.
+        /// Reads the "Resend" (ApiKey, ToEmailAddress, FromEmailAddress) and "Turnstile" (SecretKey) sections.
+        /// Rate limiting is left to the host, since it depends on how the host sees client IPs.
+        /// </summary>
+        public static IServiceCollection AddContactFeatures(this IServiceCollection services, IConfiguration configuration)
+        {
+            services.Configure<ResendSettings>(configuration.GetSection(ResendSettings.SectionName));
+            services.Configure<TurnstileSettings>(configuration.GetSection(TurnstileSettings.SectionName));
+
+            services.AddResend(options => options.ApiToken = configuration[$"{ResendSettings.SectionName}:{nameof(ResendSettings.ApiKey)}"]!);
+            services.AddTransient<IEmailService, ResendEmailService>();
+            services.AddHttpClient<IHumanVerificationService, TurnstileVerificationService>();
+
+            return services;
         }
     }
 }
