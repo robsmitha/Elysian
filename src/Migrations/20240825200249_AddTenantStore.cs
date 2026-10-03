@@ -33,8 +33,8 @@ VALUES
     ,'robsmitha',
     NULL),
 	(convert(nvarchar(64), newid())
-    ,'geekscloset'
-    ,'geekscloset',
+    ,'aspensmitha'
+    ,'aspensmitha',
     NULL)
 ");
         }

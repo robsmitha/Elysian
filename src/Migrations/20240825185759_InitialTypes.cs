@@ -101,10 +101,10 @@ namespace Elysian.Migrations
                 values: new object[]
                 {
                     2,
-                    "geekscloset",
-                    "geekscloset.com",
-                    "Merchant for geekscloset.com",
-                    "https://geekscloset.com",
+                    "aspensmitha",
+                    "aspensmitha.com",
+                    "Merchant for aspensmitha.com",
+                    "https://aspensmitha.com",
                     false,
                     false,
                     Guid.Empty.ToString(),
