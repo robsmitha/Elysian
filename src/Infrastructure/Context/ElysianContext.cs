@@ -39,6 +39,7 @@ namespace Elysian.Infrastructure.Context
         public DbSet<PriceType> PriceTypes { get; set; }
         public DbSet<Product> Products { get; set; }
         public DbSet<ProductImage> ProductImages { get; set; }
+        public DbSet<ProductSession> ProductSessions { get; set; }
         public DbSet<ProductType> ProductTypes { get; set; }
         public DbSet<TransactionCategory> TransactionCategories { get; set; }
         public DbSet<UnitType> UnitTypes { get; set; }

@@ -11,7 +11,7 @@ namespace Elysian.Infrastructure.Services
         {
             var message = new EmailMessage
             {
-                From = options.Value.FromEmailAddress,
+                From = string.IsNullOrWhiteSpace(email.From) ? options.Value.FromEmailAddress : email.From,
                 Subject = email.Subject.ReplaceLineEndings(" "),
                 HtmlBody = email.HtmlBody,
                 TextBody = email.TextBody,

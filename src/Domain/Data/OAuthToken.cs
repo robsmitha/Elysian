@@ -15,6 +15,16 @@ namespace Elysian.Domain.Data
         public DateTime CreatedAt { get; set; }
         public DateTime? ExpiresAt { get; set; }
 
+        /// <summary>
+        /// Long-lived token used to get new access tokens, for providers that issue one (Google). Secret: never log or return it.
+        /// </summary>
+        public string? RefreshToken { get; set; }
+
+        /// <summary>
+        /// When the token last worked against the provider's API (e.g. a scheduled health check)
+        /// </summary>
+        public DateTime? LastValidatedAt { get; set; }
+
         public class Configuration : IEntityTypeConfiguration<OAuthToken>
         {
             public void Configure(EntityTypeBuilder<OAuthToken> builder)

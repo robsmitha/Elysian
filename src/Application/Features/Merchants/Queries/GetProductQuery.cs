@@ -1,4 +1,5 @@
 ﻿using Elysian.Application.Exceptions;
+using Elysian.Application.Features.Merchants.Models;
 using Elysian.Domain.Data;
 using Elysian.Domain.Security;
 using Elysian.Infrastructure.Context;
@@ -32,7 +33,13 @@ namespace Elysian.Application.Features.Merchants.Queries
         }
     }
 
-    public record GetProductQueryResponse(Product Product, List<ProductImage> Images);
+    public record GetProductQueryResponse(Product Product, List<ProductImage> Images)
+    {
+        /// <summary>
+        /// Session details for session products, in the shape the save request takes
+        /// </summary>
+        public SaveProductSession? Session { get; init; }
+    }
     public class GetProductQueryHandler(ElysianContext context)
         : IRequestHandler<GetProductQuery, GetProductQueryResponse>
     {
@@ -40,7 +47,13 @@ namespace Elysian.Application.Features.Merchants.Queries
         {
             var (product, images) = await GetProductExtensionsAsync(c => c.ProductId == request.ProductId);
 
-            return new GetProductQueryResponse(product, images);
+            var session = await context.ProductSessions.AsNoTracking()
+                .Where(s => s.ProductId == product.ProductId)
+                .Select(s => new SaveProductSession(s.DurationMinutes, s.Location, s.Collection, s.Features, s.PortfolioCategory,
+                    s.CoverPhotoId, s.SortOrder, s.IsBookable))
+                .SingleOrDefaultAsync(cancellationToken);
+
+            return new GetProductQueryResponse(product, images) { Session = session };
         }
 
         private async Task<(Product, List<ProductImage>)> GetProductExtensionsAsync(Expression<Func<Product, bool>> predicate)

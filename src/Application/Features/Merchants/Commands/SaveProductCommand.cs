@@ -30,6 +30,40 @@ namespace Elysian.Application.Features.Merchants.Commands
             RuleFor(v => v.SaveProductRequest.ProductId)
                 .MustAsync(BeValidProductId)
                     .WithMessage("No matching record found. The ID may be incorrect, or the record has been deleted.");
+
+            RuleFor(v => v.SaveProductRequest.Price)
+                .GreaterThanOrEqualTo(0).WithMessage("Price can't be negative.");
+
+            When(v => v.SaveProductRequest?.ProductTypeId == (int)ProductTypes.Session, () =>
+            {
+                RuleFor(v => v.SaveProductRequest.SerialNumber)
+                    .Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$")
+                        .WithMessage("Use lowercase letters, numbers and hyphens for the URL slug, e.g. classic-portrait.")
+                    .MaximumLength(100);
+
+                RuleFor(v => v.SaveProductRequest.Session)
+                    .NotNull().WithMessage("Session details are required.");
+
+                When(v => v.SaveProductRequest.Session != null, () =>
+                {
+                    RuleFor(v => v.SaveProductRequest.Session!.DurationMinutes)
+                        .InclusiveBetween(15, 720).WithMessage("Duration must be between 15 minutes and 12 hours.");
+                    RuleFor(v => v.SaveProductRequest.Session!.Collection)
+                        .NotEmpty().WithMessage("Choose the Investment section this session is listed under.")
+                        .MaximumLength(100);
+                    RuleFor(v => v.SaveProductRequest.Session!.Location)
+                        .MaximumLength(200);
+                    RuleFor(v => v.SaveProductRequest.Session!.PortfolioCategory)
+                        .MaximumLength(64);
+                    RuleFor(v => v.SaveProductRequest.Session!.CoverPhotoId)
+                        .MustAsync(BeExistingPhoto).WithMessage("The cover photo no longer exists. Choose another.");
+                });
+            });
+        }
+
+        public async Task<bool> BeExistingPhoto(Guid? photoId, CancellationToken cancellationToken)
+        {
+            return !photoId.HasValue || await _context.Photos.AnyAsync(p => p.PhotoId == photoId, cancellationToken);
         }
 
         public async Task<bool> BeUniqueSerialNumber(SaveProductRequest saveProductRequest,
@@ -81,7 +115,7 @@ namespace Elysian.Application.Features.Merchants.Commands
                     SerialNumber = request.SaveProductRequest.SerialNumber,
                     Name = request.SaveProductRequest.Name,
                     Description = request.SaveProductRequest.Description,
-                    Grade = request.SaveProductRequest.Grade,
+                    Grade = request.SaveProductRequest.Grade ?? string.Empty,
                     Code = request.SaveProductRequest.Code,
                     Sku = request.SaveProductRequest.Sku,
                     DefaultTaxRates = true,
@@ -90,6 +124,7 @@ namespace Elysian.Application.Features.Merchants.Commands
                     ProductTypeId = request.SaveProductRequest.ProductTypeId,
                     PriceTypeId = request.SaveProductRequest.PriceTypeId,
                     UnitTypeId = request.SaveProductRequest.UnitTypeId,
+                    Price = request.SaveProductRequest.Price,
                 };
                 context.Add(product);
             }
@@ -97,8 +132,11 @@ namespace Elysian.Application.Features.Merchants.Commands
             {
                 product.SerialNumber = request.SaveProductRequest.SerialNumber;
                 product.Name = request.SaveProductRequest.Name;
-                product.Grade = request.SaveProductRequest.Grade;
+                product.Grade = request.SaveProductRequest.Grade ?? string.Empty;
                 product.Description = request.SaveProductRequest.Description;
+                product.ProductTypeId = request.SaveProductRequest.ProductTypeId;
+                product.PriceTypeId = request.SaveProductRequest.PriceTypeId;
+                product.Price = request.SaveProductRequest.Price;
                 product.ModifiedByUserId = claimsPrincipalAccessor.UserId;
                 product.ModifiedAt = DateTime.UtcNow;
             }
@@ -115,10 +153,44 @@ namespace Elysian.Application.Features.Merchants.Commands
                     StorageId = image.StorageId,
                 });
             }
+            await SaveSessionAsync(product, request.SaveProductRequest.Session, cancellationToken);
+
             await context.SaveChangesAsync(cancellationToken);
 
             // TODO: mapper
             return product;
+        }
+
+        /// <summary>
+        /// Keeps the session details in step with the product type: stored for sessions, removed otherwise
+        /// </summary>
+        private async Task SaveSessionAsync(Product product, SaveProductSession? details, CancellationToken cancellationToken)
+        {
+            var session = await context.ProductSessions.SingleOrDefaultAsync(s => s.ProductId == product.ProductId, cancellationToken);
+
+            if (product.ProductTypeId != (int)ProductTypes.Session || details == null)
+            {
+                if (session != null)
+                {
+                    context.ProductSessions.Remove(session);
+                }
+                return;
+            }
+
+            if (session == null)
+            {
+                session = new ProductSession { ProductId = product.ProductId };
+                context.ProductSessions.Add(session);
+            }
+
+            session.DurationMinutes = details.DurationMinutes;
+            session.Location = string.IsNullOrWhiteSpace(details.Location) ? null : details.Location.Trim();
+            session.Collection = details.Collection.Trim();
+            session.Features = details.Features?.Select(f => f.Trim()).Where(f => f.Length > 0).ToList() ?? [];
+            session.PortfolioCategory = string.IsNullOrWhiteSpace(details.PortfolioCategory) ? null : details.PortfolioCategory.Trim();
+            session.CoverPhotoId = details.CoverPhotoId;
+            session.SortOrder = details.SortOrder;
+            session.IsBookable = details.IsBookable;
         }
     }
 }

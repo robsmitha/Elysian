@@ -4,5 +4,6 @@
     {
         public const string GitHub = "github";
         public const string Instagram = "instagram";
+        public const string Google = "google";
     }
 }

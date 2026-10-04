@@ -1,5 +1,6 @@
 ﻿using Azure.Storage.Blobs;
 using CapitolSharp.Congress;
+using Elysian.Application.Features.Booking;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
 using Elysian.Infrastructure.Context;
@@ -174,6 +175,31 @@ namespace Elysian.Infrastructure
                 httpClient.BaseAddress = new Uri("https://graph.instagram.com/");
                 httpClient.Timeout = TimeSpan.FromSeconds(60);
             }).RemoveAllLoggers();
+
+            return services;
+        }
+
+        /// <summary>
+        /// Online booking against the tenant's Google Calendar: session products, availability, bookings and the
+        /// connection's health check. Reads the "Booking" and "GoogleCalendar" sections; the refresh token is per tenant
+        /// in the OAuthToken table (connected with ConnectGoogleCalendarCommand). Requires <see cref="AddContactFeatures"/>
+        /// (emails and human verification) and <see cref="AddPhotoFeatures"/> (cover photos). Hosts schedule
+        /// <c>CheckGoogleCalendarHealthCommand</c> themselves (e.g. a daily timer), with the tenant set, and rate limit bookings.
+        /// </summary>
+        public static IServiceCollection AddBookingFeatures(this IServiceCollection services, IConfiguration configuration)
+        {
+            services.Configure<BookingSettings>(configuration.GetSection(BookingSettings.SectionName));
+            services.Configure<GoogleCalendarSettings>(configuration.GetSection(GoogleCalendarSettings.SectionName));
+
+            services.TryAddSingleton(TimeProvider.System);
+            services.AddSingleton(serviceProvider =>
+                BookingRules.FromSettings(serviceProvider.GetRequiredService<IOptions<BookingSettings>>().Value));
+
+            services.AddScoped<IGoogleTokenStore, DbGoogleTokenStore>();
+            services.AddSingleton<IGoogleOAuthClient, GoogleOAuthClient>();
+            services.AddScoped<IGoogleAccessTokenProvider, GoogleAccessTokenProvider>();
+            services.AddScoped<IGoogleCalendarService, GoogleCalendarService>();
+            services.AddScoped<BookingAvailabilityService>();
 
             return services;
         }

@@ -9,5 +9,10 @@ namespace Elysian.Domain.Constants
     public enum ProductTypes
     {
         Trackables = 1,
+
+        /// <summary>
+        /// Bookable photo sessions; details live in <see cref="Data.ProductSession"/>
+        /// </summary>
+        Session = 2,
     }
 }
