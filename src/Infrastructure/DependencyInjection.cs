@@ -153,9 +153,10 @@ namespace Elysian.Infrastructure
         }
 
         /// <summary>
-        /// Recent Instagram posts and long-lived token refresh (Instagram API with Instagram Login).
-        /// Reads the "Instagram" section; the configured AccessToken only seeds the token store.
-        /// Hosts schedule <c>RefreshInstagramTokenCommand</c> themselves (e.g. a daily timer).
+        /// Instagram feed: per-tenant tokens in the OAuthToken table (connected with ConnectInstagramCommand) and a
+        /// mirror of recent posts with thumbnails in the public photos container. Requires <see cref="AddAzureStorageFeatures"/>
+        /// and <see cref="AddPhotoFeatures"/>. Hosts schedule <c>SyncInstagramPostsCommand</c> and
+        /// <c>RefreshInstagramTokenCommand</c> themselves (e.g. timers), with the tenant set.
         /// </summary>
         public static IServiceCollection AddInstagramFeatures(this IServiceCollection services, IConfiguration configuration)
         {
@@ -164,15 +165,14 @@ namespace Elysian.Infrastructure
             services.AddMemoryCache();
             services.TryAddSingleton(TimeProvider.System);
 
-            // Local file store for now. To share the token across instances, implement IInstagramTokenStore
-            // over Azure Blob Storage (BlobServiceClient from AddAzureStorageFeatures) and register it here instead.
-            services.AddSingleton<IInstagramTokenStore, FileInstagramTokenStore>();
+            services.AddScoped<IInstagramTokenStore, DbInstagramTokenStore>();
 
-            // The token rides in the query string, so drop the factory's loggers, which write full request URIs
+            // The token rides in the query string, so drop the factory's loggers, which write full request URIs.
+            // The timeout also covers downloading full-size media for thumbnails.
             services.AddHttpClient<IInstagramService, InstagramService>(httpClient =>
             {
                 httpClient.BaseAddress = new Uri("https://graph.instagram.com/");
-                httpClient.Timeout = TimeSpan.FromSeconds(20);
+                httpClient.Timeout = TimeSpan.FromSeconds(60);
             }).RemoveAllLoggers();
 
             return services;

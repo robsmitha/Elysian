@@ -3,5 +3,6 @@
     public static class OAuthProviders
     {
         public const string GitHub = "github";
+        public const string Instagram = "instagram";
     }
 }

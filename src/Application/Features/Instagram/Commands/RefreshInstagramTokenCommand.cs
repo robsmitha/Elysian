@@ -39,8 +39,7 @@ namespace Elysian.Application.Features.Instagram.Commands
                 var token = await tokenStore.GetAsync(cancellationToken);
                 if (token == null)
                 {
-                    logger.LogWarning("Instagram token refresh skipped: no token is configured ({Setting})",
-                        $"{InstagramSettings.SectionName}:{nameof(InstagramSettings.AccessToken)}");
+                    logger.LogInformation("Instagram token refresh skipped: no Instagram account is connected");
                     return InstagramTokenRefreshResult.NotConfigured;
                 }
 
@@ -59,9 +58,17 @@ namespace Elysian.Application.Features.Instagram.Commands
                     return InstagramTokenRefreshResult.Skipped;
                 }
 
-                var refreshed = await instagramService.RefreshTokenAsync(cancellationToken);
-                logger.LogInformation("Instagram token refreshed at {RefreshedUtc:O}; next refresh after {DueUtc:O}",
-                    refreshed.LastRefreshedUtc, refreshed.LastRefreshedUtc + interval);
+                var refreshed = await instagramService.RefreshTokenAsync(token.AccessToken, cancellationToken);
+                var now = timeProvider.GetUtcNow();
+                await tokenStore.SaveAsync(token with
+                {
+                    AccessToken = refreshed.AccessToken,
+                    LastRefreshedUtc = now,
+                    ExpiresUtc = now + refreshed.ExpiresIn,
+                }, cancellationToken);
+
+                logger.LogInformation("Instagram token refreshed at {RefreshedUtc:O}; expires {ExpiresUtc:O}, next refresh after {DueUtc:O}",
+                    now, now + refreshed.ExpiresIn, now + interval);
                 return InstagramTokenRefreshResult.Refreshed;
             }
             catch (InstagramApiException ex) when (ex.IsInvalidToken)

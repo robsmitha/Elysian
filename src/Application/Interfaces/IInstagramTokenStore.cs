@@ -1,25 +1,29 @@
 namespace Elysian.Application.Interfaces
 {
     /// <summary>
-    /// Holds the current Instagram access token, which changes every time it's refreshed. Hosts pick the
-    /// implementation: the file store works for a single local or always-on instance, while a shared store
-    /// (e.g. Azure Blob Storage) is needed once more than one instance can refresh or read the token.
+    /// Holds the current tenant's Instagram access token, which changes every time it's refreshed
     /// </summary>
     public interface IInstagramTokenStore
     {
         /// <summary>
-        /// The current token, or null when none is stored or configured
+        /// The current tenant's token, or null when no Instagram account is connected
         /// </summary>
         Task<InstagramToken?> GetAsync(CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Stores the token as the current tenant's only Instagram connection, replacing any other account
+        /// </summary>
         Task SaveAsync(InstagramToken token, CancellationToken cancellationToken = default);
     }
 
     /// <param name="AccessToken">Secret: never log it or return it from an endpoint</param>
-    /// <param name="LastRefreshedUtc">When the token was issued or last refreshed (or first seeded, if unknown)</param>
-    public record InstagramToken(string AccessToken, DateTimeOffset LastRefreshedUtc)
+    /// <param name="UserId">Instagram account id (user_id)</param>
+    /// <param name="LastRefreshedUtc">When the token was connected or last refreshed</param>
+    /// <param name="ExpiresUtc">Known once Instagram has refreshed the token; null for a pasted token of unknown age</param>
+    public record InstagramToken(string AccessToken, string UserId, DateTimeOffset LastRefreshedUtc, DateTimeOffset? ExpiresUtc)
     {
         // Keeps the token out of anything that logs or formats this record
-        public override string ToString() => $"{nameof(InstagramToken)} {{ LastRefreshedUtc = {LastRefreshedUtc:O} }}";
+        public override string ToString() =>
+            $"{nameof(InstagramToken)} {{ UserId = {UserId}, LastRefreshedUtc = {LastRefreshedUtc:O}, ExpiresUtc = {ExpiresUtc:O} }}";
     }
 }

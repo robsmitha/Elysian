@@ -1,22 +1,39 @@
-using Elysian.Application.Features.Instagram.Models;
-
 namespace Elysian.Application.Interfaces
 {
     /// <summary>
-    /// Instagram API with Instagram Login (graph.instagram.com). Calls use the token from
-    /// <see cref="IInstagramTokenStore"/> and throw <see cref="Exceptions.InstagramApiException"/> on failure.
+    /// Instagram API with Instagram Login (graph.instagram.com). Every call takes the token explicitly, so new tokens
+    /// can be verified before they're stored. Failures throw <see cref="Exceptions.InstagramApiException"/>.
     /// </summary>
     public interface IInstagramService
     {
         /// <summary>
-        /// Most recent posts, newest first, skipping any without a usable image
+        /// The account the token belongs to
         /// </summary>
-        Task<List<InstagramPostModel>> GetRecentPostsAsync(int count, CancellationToken cancellationToken = default);
+        Task<InstagramAccount> GetAccountAsync(string accessToken, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Exchanges the stored token for a fresh 60-day token and saves it to the store.
-        /// Instagram rejects tokens less than 24 hours old; callers decide when a refresh is due.
+        /// Most recent media, newest first, skipping any without a usable image
         /// </summary>
-        Task<InstagramToken> RefreshTokenAsync(CancellationToken cancellationToken = default);
+        Task<List<InstagramMedia>> GetRecentMediaAsync(string accessToken, int count, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Exchanges a long-lived token for a fresh 60-day one. Instagram rejects tokens less than 24 hours old.
+        /// </summary>
+        Task<RefreshedInstagramToken> RefreshTokenAsync(string accessToken, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Downloads a media image from Instagram's CDN into a seekable stream
+        /// </summary>
+        Task<Stream> DownloadImageAsync(string imageUrl, CancellationToken cancellationToken = default);
+    }
+
+    public record InstagramAccount(string UserId, string Username);
+
+    /// <param name="ImageUrl">Video thumbnail for VIDEO, otherwise the media itself (first image of an album)</param>
+    public record InstagramMedia(string Id, string ImageUrl, string Permalink, string? Caption, string MediaType, DateTimeOffset? Timestamp);
+
+    public record RefreshedInstagramToken(string AccessToken, TimeSpan? ExpiresIn)
+    {
+        public override string ToString() => $"{nameof(RefreshedInstagramToken)} {{ ExpiresIn = {ExpiresIn} }}";
     }
 }

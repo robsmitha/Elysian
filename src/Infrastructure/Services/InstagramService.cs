@@ -4,7 +4,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Elysian.Application.Exceptions;
-using Elysian.Application.Features.Instagram.Models;
 using Elysian.Application.Interfaces;
 
 namespace Elysian.Infrastructure.Services
@@ -14,45 +13,104 @@ namespace Elysian.Infrastructure.Services
     /// URIs must never be logged: the HttpClient is registered without the factory's request loggers, and
     /// exception messages here are built from the response body only.
     /// </summary>
-    public partial class InstagramService(HttpClient httpClient, IInstagramTokenStore tokenStore, TimeProvider timeProvider)
-        : IInstagramService
+    public partial class InstagramService(HttpClient httpClient) : IInstagramService
     {
         private const string MediaFields = "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp";
 
-        public async Task<List<InstagramPostModel>> GetRecentPostsAsync(int count, CancellationToken cancellationToken = default)
+        /// <summary>
+        /// Instagram's originals top out around 10 MB; anything far past that isn't a feed image
+        /// </summary>
+        private const long MaxImageBytes = 30L * 1024 * 1024;
+
+        public async Task<InstagramAccount> GetAccountAsync(string accessToken, CancellationToken cancellationToken = default)
         {
-            var token = await GetTokenAsync(cancellationToken);
+            var response = await SendAsync<AccountResponse>(
+                $"me?fields=user_id,username&access_token={Uri.EscapeDataString(accessToken)}", cancellationToken);
+
+            var userId = response.UserId ?? response.Id;
+            if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(response.Username))
+            {
+                throw new InstagramApiException("Instagram's account response did not include a user id and username.");
+            }
+
+            return new InstagramAccount(userId, response.Username);
+        }
+
+        public async Task<List<InstagramMedia>> GetRecentMediaAsync(string accessToken, int count, CancellationToken cancellationToken = default)
+        {
             var limit = Math.Clamp(count, 1, 100);
 
             var response = await SendAsync<MediaResponse>(
-                $"me/media?fields={MediaFields}&limit={limit}&access_token={Uri.EscapeDataString(token.AccessToken)}", cancellationToken);
+                $"me/media?fields={MediaFields}&limit={limit}&access_token={Uri.EscapeDataString(accessToken)}", cancellationToken);
 
             return (response.Data ?? [])
-                .Select(ToPostModel)
-                .OfType<InstagramPostModel>()
+                .Select(ToMedia)
+                .OfType<InstagramMedia>()
                 .ToList();
         }
 
-        public async Task<InstagramToken> RefreshTokenAsync(CancellationToken cancellationToken = default)
+        public async Task<RefreshedInstagramToken> RefreshTokenAsync(string accessToken, CancellationToken cancellationToken = default)
         {
-            var token = await GetTokenAsync(cancellationToken);
-
             var response = await SendAsync<RefreshResponse>(
-                $"refresh_access_token?grant_type=ig_refresh_token&access_token={Uri.EscapeDataString(token.AccessToken)}", cancellationToken);
+                $"refresh_access_token?grant_type=ig_refresh_token&access_token={Uri.EscapeDataString(accessToken)}", cancellationToken);
 
             if (string.IsNullOrWhiteSpace(response.AccessToken))
             {
                 throw new InstagramApiException("Instagram's token refresh response did not include a token.");
             }
 
-            var refreshed = new InstagramToken(response.AccessToken, timeProvider.GetUtcNow());
-            await tokenStore.SaveAsync(refreshed, cancellationToken);
-            return refreshed;
+            return new RefreshedInstagramToken(response.AccessToken,
+                response.ExpiresIn is long seconds and > 0 ? TimeSpan.FromSeconds(seconds) : null);
         }
 
-        private async Task<InstagramToken> GetTokenAsync(CancellationToken cancellationToken) =>
-            await tokenStore.GetAsync(cancellationToken)
-                ?? throw new InstagramApiException("No Instagram access token is configured (Instagram:AccessToken).");
+        public async Task<Stream> DownloadImageAsync(string imageUrl, CancellationToken cancellationToken = default)
+        {
+            if (!Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+            {
+                throw new InstagramApiException("Instagram returned a media URL that isn't an absolute https URL.");
+            }
+
+            HttpResponseMessage response;
+            try
+            {
+                response = await httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            }
+            catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
+            {
+                throw new InstagramApiException($"Instagram's CDN could not be reached ({ex.GetType().Name}).", innerException: ex);
+            }
+
+            using (response)
+            {
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new InstagramApiException($"Instagram's CDN returned {(int)response.StatusCode} for a media image.", (int)response.StatusCode);
+                }
+
+                if (response.Content.Headers.ContentLength > MaxImageBytes)
+                {
+                    throw new InstagramApiException($"Media image is {response.Content.Headers.ContentLength:N0} bytes, over the {MaxImageBytes:N0} byte limit.");
+                }
+
+                var buffer = new MemoryStream();
+                await using (var content = await response.Content.ReadAsStreamAsync(cancellationToken))
+                {
+                    var chunk = new byte[81920];
+                    int read;
+                    while ((read = await content.ReadAsync(chunk, cancellationToken)) > 0)
+                    {
+                        if (buffer.Length + read > MaxImageBytes)
+                        {
+                            throw new InstagramApiException($"Media image is over the {MaxImageBytes:N0} byte limit.");
+                        }
+                        buffer.Write(chunk, 0, read);
+                    }
+                }
+
+                buffer.Position = 0;
+                return buffer;
+            }
+        }
 
         private async Task<T> SendAsync<T>(string relativeUri, CancellationToken cancellationToken)
         {
@@ -102,10 +160,10 @@ namespace Elysian.Infrastructure.Services
         }
 
         /// <summary>
-        /// Videos show their thumbnail; images and albums (whose media_url is the first item) show the media itself.
-        /// Posts with neither, e.g. a video whose thumbnail Instagram withheld, are skipped.
+        /// Videos use their thumbnail; images and albums (whose media_url is the first item) use the media itself.
+        /// Media with neither, e.g. a video whose thumbnail Instagram withheld, is skipped.
         /// </summary>
-        private static InstagramPostModel? ToPostModel(MediaItem item)
+        private static InstagramMedia? ToMedia(MediaItem item)
         {
             var imageUrl = item.MediaType == "VIDEO" ? item.ThumbnailUrl : item.MediaUrl;
             if (string.IsNullOrWhiteSpace(item.Id) || string.IsNullOrWhiteSpace(imageUrl) || string.IsNullOrWhiteSpace(item.Permalink))
@@ -113,7 +171,7 @@ namespace Elysian.Infrastructure.Services
                 return null;
             }
 
-            return new InstagramPostModel(item.Id, imageUrl, item.Permalink, item.Caption, item.MediaType ?? "IMAGE", ParseTimestamp(item.Timestamp));
+            return new InstagramMedia(item.Id, imageUrl, item.Permalink, item.Caption, item.MediaType ?? "IMAGE", ParseTimestamp(item.Timestamp));
         }
 
         /// <summary>
@@ -134,6 +192,18 @@ namespace Elysian.Infrastructure.Services
 
         [GeneratedRegex(@"([+-]\d{2})(\d{2})$")]
         private static partial Regex CompactOffset();
+
+        private class AccountResponse
+        {
+            [JsonPropertyName("user_id")]
+            public string? UserId { get; set; }
+
+            [JsonPropertyName("id")]
+            public string? Id { get; set; }
+
+            [JsonPropertyName("username")]
+            public string? Username { get; set; }
+        }
 
         private class MediaResponse
         {
