@@ -1,6 +1,9 @@
-﻿using Azure.Storage.Blobs;
+﻿using Azure.Core;
+using Azure.Identity;
+using Azure.Storage.Blobs;
 using CapitolSharp.Congress;
 using Elysian.Application.Features.Booking;
+using Elysian.Application.Features.UserManagement;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
 using Elysian.Infrastructure.Context;
@@ -143,14 +146,65 @@ namespace Elysian.Infrastructure
         /// </summary>
         public static IServiceCollection AddContactFeatures(this IServiceCollection services, IConfiguration configuration)
         {
-            services.Configure<ResendSettings>(configuration.GetSection(ResendSettings.SectionName));
             services.Configure<TurnstileSettings>(configuration.GetSection(TurnstileSettings.SectionName));
 
-            services.AddResend(options => options.ApiToken = configuration[$"{ResendSettings.SectionName}:{nameof(ResendSettings.ApiKey)}"]!);
-            services.AddTransient<IEmailService, ResendEmailService>();
+            AddResendEmail(services, configuration);
             services.AddHttpClient<IHumanVerificationService, TurnstileVerificationService>();
 
             return services;
+        }
+
+        /// <summary>
+        /// Admin user management through Microsoft Entra ID: B2B guest invitations, app role assignments on the
+        /// enterprise app, and invitation emails through Resend. Reads GRAPH_TENANT_ID, GRAPH_CLIENT_ID,
+        /// GRAPH_CLIENT_SECRET, ENTERPRISE_APP_SP_ID, APP_ROLE_ID and APP_URL, and the "Resend" section. The Graph app
+        /// needs the User.ReadWrite.All and AppRoleAssignment.ReadWrite.All application permissions.
+        /// </summary>
+        public static IServiceCollection AddUserManagementFeatures(this IServiceCollection services, IConfiguration configuration)
+        {
+            services.Configure<EntraSettings>(settings => EntraSettings.Bind(settings, configuration));
+            AddResendEmail(services, configuration);
+
+            services.TryAddSingleton(TimeProvider.System);
+            services.TryAddSingleton(new GraphRetryOptions());
+
+            // One credential for the app's lifetime so its token cache is shared
+            services.AddSingleton<TokenCredential>(serviceProvider =>
+            {
+                var settings = serviceProvider.GetRequiredService<IOptions<EntraSettings>>().Value;
+                var missing = settings.MissingSettings().ToList();
+                if (missing.Count > 0)
+                {
+                    throw new InvalidOperationException($"User management is missing settings: {string.Join(", ", missing)}.");
+                }
+                return new ClientSecretCredential(settings.TenantId, settings.ClientId, settings.ClientSecret);
+            });
+
+            // Invitation responses carry redeem URLs, so drop the factory's loggers
+            services.AddHttpClient<IGraphApiClient, GraphApiClient>(httpClient =>
+            {
+                httpClient.BaseAddress = new Uri(GraphApiClient.BaseAddress);
+            }).RemoveAllLoggers();
+
+            services.AddScoped<IEntraDirectoryService, EntraDirectoryService>();
+            services.AddScoped<UserManagementService>();
+
+            return services;
+        }
+
+        /// <summary>
+        /// Registers Resend and <see cref="IEmailService"/> once, for whichever features need email
+        /// </summary>
+        private static void AddResendEmail(IServiceCollection services, IConfiguration configuration)
+        {
+            if (services.Any(s => s.ServiceType == typeof(IResend)))
+            {
+                return;
+            }
+
+            services.Configure<ResendSettings>(configuration.GetSection(ResendSettings.SectionName));
+            services.AddResend(options => options.ApiToken = configuration[$"{ResendSettings.SectionName}:{nameof(ResendSettings.ApiKey)}"]!);
+            services.TryAddTransient<IEmailService, ResendEmailService>();
         }
 
         /// <summary>

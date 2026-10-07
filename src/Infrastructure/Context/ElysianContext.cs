@@ -31,6 +31,7 @@ namespace Elysian.Infrastructure.Context
         public DbSet<InstagramPost> InstagramPosts { get; set; }
         public DbSet<InstitutionAccessItem> InstitutionAccessItems { get; set; }
         public DbSet<InstitutionAccessItemUser> InstitutionAccessItemUsers { get; set; }
+        public DbSet<ManagedUser> ManagedUsers { get; set; }
         public DbSet<Merchant> Merchants { get; set; }
         public DbSet<MerchantType> MerchantTypes { get; set; }
         public DbSet<OAuthState> OAuthStates { get; set; }
@@ -45,6 +46,7 @@ namespace Elysian.Infrastructure.Context
         public DbSet<TransactionCategory> TransactionCategories { get; set; }
         public DbSet<UnitType> UnitTypes { get; set; }
         public DbSet<User> Users { get; set; }
+        public DbSet<UserAuditLog> UserAuditLogs { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {

@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <PackageReference Include="AutoMapper" Version="13.0.1" />
+    <PackageReference Include="Azure.Identity" Version="1.13.1" />
     <PackageReference Include="Azure.Storage.Blobs" Version="12.21.2" />
     <PackageReference Include="CapitolSharp.Congress" Version="0.0.8" />
     <PackageReference Include="Finbuckle.MultiTenant" Version="7.0.2" />
