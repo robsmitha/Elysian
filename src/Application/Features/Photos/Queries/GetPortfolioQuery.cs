@@ -10,7 +10,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Elysian.Application.Features.Photos.Queries
 {
     /// <summary>
-    /// Public, anonymous read of every ready photo (optionally one category)
+    /// Public, anonymous read of every ready photo (optionally one category). Story photos are left out,
+    /// since stories load their own, except ones filling a site spot so placements keep working.
     /// </summary>
     public record GetPortfolioQuery(string? Category = null) : IRequest<List<PortfolioPhotoModel>>;
 
@@ -22,7 +23,9 @@ namespace Elysian.Application.Features.Photos.Queries
         {
             var tenantIdentifier = multiTenantContextAccessor.MultiTenantContext.TenantInfo!.Identifier!;
 
-            var query = context.Photos.AsNoTracking().Where(p => p.Status == PhotoStatus.Ready);
+            var query = context.Photos.AsNoTracking()
+                .Where(p => p.Status == PhotoStatus.Ready)
+                .Where(p => p.StoryId == null || context.Placements.Any(s => s.PhotoId == p.PhotoId));
             if (!string.IsNullOrWhiteSpace(request.Category))
             {
                 query = query.Where(p => p.Category == request.Category);

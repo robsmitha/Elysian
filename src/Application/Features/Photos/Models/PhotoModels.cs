@@ -21,7 +21,8 @@ namespace Elysian.Application.Features.Photos.Models
         double FocusY,
         string? Placeholder,
         string SrcBase,
-        List<int> Widths);
+        List<int> Widths,
+        Guid? StoryId = null);
 
     public record PhotoModel(
         Guid Id,
@@ -40,7 +41,8 @@ namespace Elysian.Application.Features.Photos.Models
         string? ProcessingError,
         string OriginalFileName,
         long OriginalFileSize,
-        DateTimeOffset CreatedAt);
+        DateTimeOffset CreatedAt,
+        Guid? StoryId = null);
 
     public static class PhotoModelMappings
     {
@@ -69,13 +71,13 @@ namespace Elysian.Application.Features.Photos.Models
             ILookup<Guid, string> placements) =>
             new(photo.PhotoId, photo.Category, placements[photo.PhotoId].Order().ToList(), photo.SortOrder, photo.AltText,
                 photo.Width ?? 0, photo.Height ?? 0, photo.FocusX, photo.FocusY, photo.Placeholder,
-                photo.SrcBase(photoStorage, tenantIdentifier)!, photo.VariantWidths);
+                photo.SrcBase(photoStorage, tenantIdentifier)!, photo.VariantWidths, photo.StoryId);
 
         public static PhotoModel ToModel(this Photo photo, IPhotoStorage photoStorage, string tenantIdentifier,
             ILookup<Guid, string> placements) =>
             new(photo.PhotoId, photo.Category, placements[photo.PhotoId].Order().ToList(), photo.SortOrder, photo.AltText,
                 photo.Width, photo.Height, photo.FocusX, photo.FocusY, photo.Placeholder,
                 photo.SrcBase(photoStorage, tenantIdentifier), photo.VariantWidths,
-                photo.Status.ToString(), photo.ProcessingError, photo.OriginalFileName, photo.OriginalFileSize, photo.CreatedAt);
+                photo.Status.ToString(), photo.ProcessingError, photo.OriginalFileName, photo.OriginalFileSize, photo.CreatedAt, photo.StoryId);
     }
 }

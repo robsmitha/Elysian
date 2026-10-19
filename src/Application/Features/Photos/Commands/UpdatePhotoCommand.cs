@@ -60,15 +60,16 @@ namespace Elysian.Application.Features.Photos.Commands
         {
             var photo = await context.Photos.SingleAsync(p => p.PhotoId == request.PhotoId, cancellationToken);
 
-            if (photo.Category != request.Category)
+            // A story photo's category follows its story (UpdateStoryCommand moves them together)
+            if (photo.StoryId == null && photo.Category != request.Category)
             {
                 var lastSortOrder = await context.Photos
-                    .Where(p => p.Category == request.Category)
+                    .Where(p => p.StoryId == null && p.Category == request.Category)
                     .MaxAsync(p => (int?)p.SortOrder, cancellationToken);
                 photo.SortOrder = (lastSortOrder ?? -1) + 1;
+                photo.Category = request.Category;
             }
 
-            photo.Category = request.Category;
             photo.AltText = string.IsNullOrWhiteSpace(request.AltText) ? null : request.AltText.Trim();
             photo.FocusX = request.FocusX;
             photo.FocusY = request.FocusY;

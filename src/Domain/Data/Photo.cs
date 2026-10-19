@@ -18,6 +18,13 @@ namespace Elysian.Domain.Data
         /// </summary>
         public string Category { get; set; }
 
+        /// <summary>
+        /// Set when the photo belongs to a story; SortOrder then counts within the story.
+        /// Story photos stay out of category galleries.
+        /// </summary>
+        public Guid? StoryId { get; set; }
+        public Story? Story { get; set; }
+
         public int SortOrder { get; set; }
         public string? AltText { get; set; }
 
@@ -64,6 +71,7 @@ namespace Elysian.Domain.Data
 
                 builder.Property(e => e.Category).IsRequired().HasMaxLength(64);
                 builder.HasIndex(["Category", "SortOrder"]).HasDatabaseName("IX_Photo_Category_SortOrder");
+                builder.HasIndex(["StoryId", "SortOrder"]).HasDatabaseName("IX_Photo_StoryId_SortOrder");
 
                 builder.Property(e => e.AltText).HasMaxLength(512);
                 builder.Property(e => e.OriginalFileName).IsRequired().HasMaxLength(256);

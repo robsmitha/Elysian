@@ -15,16 +15,26 @@ namespace Elysian.Application.Features.Photos.Commands
     /// <summary>
     /// Creates the photo record and returns a short-lived URL the browser PUTs the original to.
     /// Processing starts from the storage blob-created event, not from this request.
+    /// With <see cref="StoryId"/> the photo joins that story (taking the story's category) at the end of its order.
     /// </summary>
     [Authorize(Policy = PolicyNames.PhotoWrite)]
-    public record CreatePhotoUploadCommand(string FileName, long FileSize, string Category) : IRequest<CreatePhotoUploadResponse>;
+    public record CreatePhotoUploadCommand(string FileName, long FileSize, string Category, Guid? StoryId = null)
+        : IRequest<CreatePhotoUploadResponse>;
 
     public record CreatePhotoUploadResponse(Guid PhotoId, string UploadUrl);
 
     public class CreatePhotoUploadCommandValidator : AbstractValidator<CreatePhotoUploadCommand>
     {
-        public CreatePhotoUploadCommandValidator(IOptions<PhotoStorageSettings> photoStorageSettings)
+        private readonly ElysianContext _context;
+        public CreatePhotoUploadCommandValidator(IOptions<PhotoStorageSettings> photoStorageSettings, ElysianContext context)
         {
+            _context = context;
+
+            RuleFor(v => v.StoryId)
+                .MustAsync(BeExistingStory)
+                    .WithMessage("No matching story found. The ID may be incorrect, or the story has been deleted.")
+                .When(v => v.StoryId.HasValue);
+
             RuleFor(v => v.FileName)
                 .NotEmpty()
                 .MaximumLength(256)
@@ -38,7 +48,13 @@ namespace Elysian.Application.Features.Photos.Commands
 
             RuleFor(v => v.Category)
                 .NotEmpty()
-                .Matches(PhotoValidation.CategoryPattern);
+                .Matches(PhotoValidation.CategoryPattern)
+                .When(v => !v.StoryId.HasValue);
+        }
+
+        public async Task<bool> BeExistingStory(Guid? storyId, CancellationToken cancellationToken)
+        {
+            return await _context.Stories.AnyAsync(s => s.StoryId == storyId, cancellationToken);
         }
     }
 
@@ -52,14 +68,27 @@ namespace Elysian.Application.Features.Photos.Commands
             var photoId = Guid.NewGuid();
             var blobName = PhotoPaths.Original(tenantIdentifier, photoId, request.FileName);
 
-            var lastSortOrder = await context.Photos
-                .Where(p => p.Category == request.Category)
-                .MaxAsync(p => (int?)p.SortOrder, cancellationToken);
+            var category = request.Category;
+            int? lastSortOrder;
+            if (request.StoryId is Guid storyId)
+            {
+                category = await context.Stories.Where(s => s.StoryId == storyId).Select(s => s.Category).SingleAsync(cancellationToken);
+                lastSortOrder = await context.Photos
+                    .Where(p => p.StoryId == storyId)
+                    .MaxAsync(p => (int?)p.SortOrder, cancellationToken);
+            }
+            else
+            {
+                lastSortOrder = await context.Photos
+                    .Where(p => p.StoryId == null && p.Category == category)
+                    .MaxAsync(p => (int?)p.SortOrder, cancellationToken);
+            }
 
             context.Photos.Add(new Photo
             {
                 PhotoId = photoId,
-                Category = request.Category,
+                Category = category,
+                StoryId = request.StoryId,
                 SortOrder = (lastSortOrder ?? -1) + 1,
                 OriginalFileName = Path.GetFileName(request.FileName),
                 OriginalBlobName = blobName,

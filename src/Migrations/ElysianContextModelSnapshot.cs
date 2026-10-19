@@ -973,6 +973,9 @@ namespace Elysian.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
 
+                    b.Property<Guid?>("StoryId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("TenantId")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -992,6 +995,9 @@ namespace Elysian.Migrations
 
                     b.HasIndex("Category", "SortOrder")
                         .HasDatabaseName("IX_Photo_Category_SortOrder");
+
+                    b.HasIndex("StoryId", "SortOrder")
+                        .HasDatabaseName("IX_Photo_StoryId_SortOrder");
 
                     b.ToTable("Photo", (string)null);
 
@@ -1353,6 +1359,103 @@ namespace Elysian.Migrations
                     b.ToTable("ProductType", (string)null);
                 });
 
+            modelBuilder.Entity("Elysian.Domain.Data.Story", b =>
+                {
+                    b.Property<Guid>("StoryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateOnly?>("EventDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid?>("HeroPhotoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset>("ModifiedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ModifiedByUserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SeoDescription")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("SeoTitle")
+                        .HasMaxLength(70)
+                        .HasColumnType("nvarchar(70)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("State")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("VenueName")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.HasKey("StoryId");
+
+                    b.HasIndex("HeroPhotoId");
+
+                    b.HasIndex("Category", "Status")
+                        .HasDatabaseName("IX_Story_Category_Status");
+
+                    b.HasIndex("Slug", "TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("AK_Story_Slug")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("Story", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.TransactionCategory", b =>
                 {
                     b.Property<int>("TransactionCategoryId")
@@ -1683,6 +1786,16 @@ namespace Elysian.Migrations
                     b.Navigation("MerchantType");
                 });
 
+            modelBuilder.Entity("Elysian.Domain.Data.Photo", b =>
+                {
+                    b.HasOne("Elysian.Domain.Data.Story", "Story")
+                        .WithMany("Photos")
+                        .HasForeignKey("StoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Story");
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.Placement", b =>
                 {
                     b.HasOne("Elysian.Domain.Data.Photo", "Photo")
@@ -1758,6 +1871,16 @@ namespace Elysian.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("Elysian.Domain.Data.Story", b =>
+                {
+                    b.HasOne("Elysian.Domain.Data.Photo", "HeroPhoto")
+                        .WithMany()
+                        .HasForeignKey("HeroPhotoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("HeroPhoto");
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.TransactionCategory", b =>
                 {
                     b.HasOne("Elysian.Domain.Data.Budget", "Budget")
@@ -1814,6 +1937,11 @@ namespace Elysian.Migrations
             modelBuilder.Entity("Elysian.Domain.Data.InstitutionAccessItem", b =>
                 {
                     b.Navigation("AccessUsers");
+                });
+
+            modelBuilder.Entity("Elysian.Domain.Data.Story", b =>
+                {
+                    b.Navigation("Photos");
                 });
 
             modelBuilder.Entity("Elysian.Domain.Data.User", b =>
