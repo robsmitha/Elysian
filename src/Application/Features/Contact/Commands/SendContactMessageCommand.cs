@@ -16,6 +16,7 @@ namespace Elysian.Application.Features.Contact.Commands
     /// Anonymous by design: protected by a honeypot (<see cref="Website"/>) and human verification
     /// (<see cref="TurnstileToken"/>). Hosts should also rate limit the endpoint per client.
     /// </summary>
+    /// <param name="ReferralSource">How the visitor heard about the business, e.g. "Instagram" or "Other: a wedding fair". Optional.</param>
     public record SendContactMessageCommand(
         string? Name,
         string? Email,
@@ -23,7 +24,8 @@ namespace Elysian.Application.Features.Contact.Commands
         string? Subject,
         string? Message,
         string? TurnstileToken,
-        string? Website) : IRequest<bool>
+        string? Website,
+        string? ReferralSource = null) : IRequest<bool>
     {
         /// <summary>
         /// Caller's IP, passed to the verification provider. Set by the host, never read from the request body.
@@ -68,6 +70,9 @@ namespace Elysian.Application.Features.Contact.Commands
                 RuleFor(v => v.Message)
                     .MaximumLength(5000).WithMessage("Message must be 5000 characters or fewer.");
 
+                RuleFor(v => v.ReferralSource)
+                    .MaximumLength(200).WithMessage("How you heard about us must be 200 characters or fewer.");
+
                 RuleFor(v => v.TurnstileToken)
                     .NotEmpty().WithMessage("Please complete the verification.");
             });
@@ -105,18 +110,19 @@ namespace Elysian.Application.Features.Contact.Commands
             var subject = request.Subject!.Trim();
             var phone = string.IsNullOrWhiteSpace(request.Phone) ? "Not provided" : request.Phone.Trim();
             var message = string.IsNullOrWhiteSpace(request.Message) ? "No message provided." : request.Message.Trim();
+            var referral = string.IsNullOrWhiteSpace(request.ReferralSource) ? "Not provided" : request.ReferralSource.Trim();
 
             await emailService.SendAsync(new OutgoingEmail(
                 To: toAddress,
                 Subject: $"New inquiry from {name}: {subject}",
-                HtmlBody: BuildHtml(name, email, phone, subject, message),
-                TextBody: $"Name: {name}\nEmail: {email}\nPhone: {phone}\nSubject: {subject}\n\n{message}",
+                HtmlBody: BuildHtml(name, email, phone, subject, referral, message),
+                TextBody: $"Name: {name}\nEmail: {email}\nPhone: {phone}\nSubject: {subject}\nHeard about us: {referral}\n\n{message}",
                 ReplyTo: email), cancellationToken);
 
             return true;
         }
 
-        private static string BuildHtml(string name, string email, string phone, string subject, string message)
+        private static string BuildHtml(string name, string email, string phone, string subject, string referral, string message)
         {
             static string Encode(string value) => WebUtility.HtmlEncode(value);
 
@@ -127,6 +133,7 @@ namespace Elysian.Application.Features.Contact.Commands
                     <tr><td><strong>Email</strong></td><td>{Encode(email)}</td></tr>
                     <tr><td><strong>Phone</strong></td><td>{Encode(phone)}</td></tr>
                     <tr><td><strong>Subject</strong></td><td>{Encode(subject)}</td></tr>
+                    <tr><td><strong>Heard about us</strong></td><td>{Encode(referral)}</td></tr>
                 </table>
                 <p style="font-family: Arial, sans-serif; font-size: 14px; white-space: pre-wrap;">{Encode(message)}</p>
                 """;

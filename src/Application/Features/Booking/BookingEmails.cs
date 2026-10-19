@@ -13,7 +13,7 @@ namespace Elysian.Application.Features.Booking
         private static readonly CultureInfo Culture = CultureInfo.GetCultureInfo("en-US");
 
         public record Details(string Title, int DurationMinutes, decimal? Price, bool IsPriceFrom, string? Location,
-            DateTimeOffset Start, string Name, string Email, string? Phone, string? Message);
+            DateTimeOffset Start, string Name, string Email, string? Phone, string? Message, string? ReferralSource = null);
 
         /// <summary>
         /// Inbox told about bookings and calendar problems: Booking:NotificationEmailAddress, else Resend:ToEmailAddress
@@ -62,6 +62,7 @@ namespace Elysian.Application.Features.Booking
             var when = FormatWhen(details.Start, ownerTimeZone);
             var phone = string.IsNullOrWhiteSpace(details.Phone) ? "Not provided" : details.Phone;
             var message = string.IsNullOrWhiteSpace(details.Message) ? "No message provided." : details.Message;
+            var referral = string.IsNullOrWhiteSpace(details.ReferralSource) ? "Not provided" : details.ReferralSource;
 
             var text = $"""
                 New booking request (tentative on your calendar until the deposit is paid)
@@ -73,6 +74,7 @@ namespace Elysian.Application.Features.Booking
                 Email: {details.Email}
                 Phone: {phone}
                 Client's time zone: {clientTimeZone ?? "Unknown"}
+                Heard about us: {referral}
 
                 {message}
                 """;
@@ -87,6 +89,7 @@ namespace Elysian.Application.Features.Booking
                     <tr><td><strong>Email</strong></td><td>{Encode(details.Email)}</td></tr>
                     <tr><td><strong>Phone</strong></td><td>{Encode(phone)}</td></tr>
                     <tr><td><strong>Client's time zone</strong></td><td>{Encode(clientTimeZone ?? "Unknown")}</td></tr>
+                    <tr><td><strong>Heard about us</strong></td><td>{Encode(referral)}</td></tr>
                 </table>
                 <p style="font-family: Arial, sans-serif; font-size: 14px; white-space: pre-wrap;">{Encode(message)}</p>
                 """;

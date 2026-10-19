@@ -24,6 +24,7 @@ namespace Elysian.Application.Features.Booking.Commands
     /// Hosts should also rate limit the endpoint per client.
     /// </summary>
     /// <param name="TimeZone">Client's IANA time zone, used only to show times in their emails</param>
+    /// <param name="ReferralSource">How the client heard about the business, e.g. "Instagram" or "Other: a wedding fair". Optional.</param>
     public record CreateBookingCommand(
         DateTimeOffset? Start,
         string? Name,
@@ -33,7 +34,8 @@ namespace Elysian.Application.Features.Booking.Commands
         bool PoliciesAccepted,
         string? TimeZone,
         string? TurnstileToken,
-        string? Website) : IRequest<CreateBookingResult>
+        string? Website,
+        string? ReferralSource = null) : IRequest<CreateBookingResult>
     {
         /// <summary>
         /// Session slug from the route. Set by the host.
@@ -82,6 +84,9 @@ namespace Elysian.Application.Features.Booking.Commands
 
                 RuleFor(v => v.Message)
                     .MaximumLength(5000).WithMessage("Message must be 5000 characters or fewer.");
+
+                RuleFor(v => v.ReferralSource)
+                    .MaximumLength(200).WithMessage("How you heard about us must be 200 characters or fewer.");
 
                 RuleFor(v => v.PoliciesAccepted)
                     .Equal(true).WithMessage("Please confirm you've read and agree to the Payment and Gallery Policies.");
@@ -137,6 +142,7 @@ namespace Elysian.Application.Features.Booking.Commands
             var email = request.Email!.Trim();
             var phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
             var message = string.IsNullOrWhiteSpace(request.Message) ? null : request.Message.Trim();
+            var referral = string.IsNullOrWhiteSpace(request.ReferralSource) ? null : request.ReferralSource.Trim();
             var clientTimeZone = !string.IsNullOrWhiteSpace(request.TimeZone)
                 && TimeZoneInfo.TryFindSystemTimeZoneById(request.TimeZone.Trim(), out var zone) ? zone : null;
 
@@ -153,7 +159,7 @@ namespace Elysian.Application.Features.Booking.Commands
                 var created = await calendarService.CreateEventAsync(new NewCalendarEvent(
                     EventId(row.Product.ProductId, start, email),
                     $"PENDING – {row.Product.Name} – {name}",
-                    EventDescription(row, start, name, email, phone, message, clientTimeZone),
+                    EventDescription(row, start, name, email, phone, referral, message, clientTimeZone),
                     start,
                     start.AddMinutes(duration),
                     rules.TimeZone.Id,
@@ -183,7 +189,7 @@ namespace Elysian.Application.Features.Booking.Commands
             }
 
             logger.LogInformation("Booked {Slug} at {Start:O} (tentative)", row.Product.SerialNumber, start);
-            await SendEmailsAsync(row, start, name, email, phone, message, clientTimeZone, cancellationToken);
+            await SendEmailsAsync(row, start, name, email, phone, referral, message, clientTimeZone, cancellationToken);
 
             return Booked(row, start, name, email);
         }
@@ -213,7 +219,7 @@ namespace Elysian.Application.Features.Booking.Commands
         }
 
         private string EventDescription(BookingSessions.SessionRow row, DateTimeOffset start, string name, string email,
-            string? phone, string? message, TimeZoneInfo? clientTimeZone)
+            string? phone, string? referral, string? message, TimeZoneInfo? clientTimeZone)
         {
             var builder = new StringBuilder()
                 .AppendLine($"Session: {row.Product.Name} ({BookingEmails.FormatDuration(row.Session.DurationMinutes)})")
@@ -222,7 +228,8 @@ namespace Elysian.Application.Features.Booking.Commands
                 .AppendLine()
                 .AppendLine($"Client: {name}")
                 .AppendLine($"Email: {email}")
-                .AppendLine($"Phone: {phone ?? "Not provided"}");
+                .AppendLine($"Phone: {phone ?? "Not provided"}")
+                .AppendLine($"Heard about us: {referral ?? "Not provided"}");
 
             if (clientTimeZone != null && clientTimeZone.Id != availabilityService.Rules.TimeZone.Id)
             {
@@ -238,11 +245,11 @@ namespace Elysian.Application.Features.Booking.Commands
         /// The booking already exists on the calendar, so email failures are logged rather than failing the request
         /// </summary>
         private async Task SendEmailsAsync(BookingSessions.SessionRow row, DateTimeOffset start, string name, string email,
-            string? phone, string? message, TimeZoneInfo? clientTimeZone, CancellationToken cancellationToken)
+            string? phone, string? referral, string? message, TimeZoneInfo? clientTimeZone, CancellationToken cancellationToken)
         {
             var booking = bookingOptions.Value;
             var details = new BookingEmails.Details(row.Product.Name, row.Session.DurationMinutes, row.Product.Price, row.Product.IsPriceFrom(),
-                row.Session.Location, start, name, email, phone, message);
+                row.Session.Location, start, name, email, phone, message, referral);
 
             try
             {
