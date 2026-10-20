@@ -3,6 +3,7 @@ using Azure.Identity;
 using Azure.Storage.Blobs;
 using CapitolSharp.Congress;
 using Elysian.Application.Features.Booking;
+using Elysian.Application.Features.Placements;
 using Elysian.Application.Features.UserManagement;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
@@ -137,6 +138,38 @@ namespace Elysian.Infrastructure
             return services.Configure<PhotoStorageSettings>(configuration.GetSection(nameof(PhotoStorageSettings)))
                 .AddScoped<IPhotoStorage, AzurePhotoStorage>()
                 .AddSingleton<IPhotoProcessor, ImageSharpPhotoProcessor>();
+        }
+
+        /// <summary>
+        /// Reserved placement images: each slot in <paramref name="catalog"/> gets fixed CDN URLs that are re-rendered,
+        /// overwritten and purged when what it shows changes. Requires <see cref="AddPhotoFeatures"/>. Reads the
+        /// "PlacementPublishing" and "Cloudflare" sections, and the PlacementsQueue connection the host's queue trigger
+        /// uses (PlacementsQueue__queueServiceUri with managed identity, or a PlacementsQueue connection string).
+        /// The host: enqueues on photo changes (<see cref="IPlacementPublishQueue"/>), sends PublishPlacementsCommand
+        /// from a queue trigger on <see cref="PlacementQueue.QueueName"/>, and exposes RepublishPlacementsCommand and
+        /// GetPlacementStatusQuery to admins.
+        /// </summary>
+        public static IServiceCollection AddPlacementFeatures(this IServiceCollection services, IConfiguration configuration,
+            PlacementCatalog catalog)
+        {
+            services.Configure<PlacementPublishingSettings>(configuration.GetSection(PlacementPublishingSettings.SectionName));
+            services.Configure<CloudflareSettings>(configuration.GetSection(CloudflareSettings.SectionName));
+
+            services.AddSingleton(catalog);
+            services.AddSingleton(serviceProvider => new PlacementStorageClients(
+                serviceProvider.GetRequiredService<IOptions<PlacementPublishingSettings>>().Value, configuration));
+
+            services.AddScoped<PlacementResolver>();
+            services.AddScoped<IPlacementStore, AzurePlacementStore>();
+            services.AddScoped<IPlacementPublishQueue, AzurePlacementPublishQueue>();
+            services.AddSingleton<IPlacementRenderer, ImageSharpPlacementRenderer>();
+            services.AddHttpClient<ICdnPurger, CloudflareCdnPurger>((serviceProvider, httpClient) =>
+            {
+                httpClient.BaseAddress = new Uri(serviceProvider.GetRequiredService<IOptions<CloudflareSettings>>().Value.ApiBaseUrl);
+                httpClient.Timeout = TimeSpan.FromSeconds(30);
+            });
+
+            return services;
         }
 
         /// <summary>
