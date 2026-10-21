@@ -16,6 +16,11 @@ namespace Elysian.Application.Interfaces
         Task DeleteVariantsAsync(string prefix, CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// Names of the variants under <paramref name="prefix"/>, from one listing (nothing is downloaded)
+        /// </summary>
+        Task<IReadOnlySet<string>> ListVariantsAsync(string prefix, CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Public (CDN) URL for a path inside the variants container
         /// </summary>
         string GetPublicUrl(string blobPath);

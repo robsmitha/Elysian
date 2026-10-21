@@ -73,6 +73,16 @@ namespace Elysian.Infrastructure.Services
             }
         }
 
+        public async Task<IReadOnlySet<string>> ListVariantsAsync(string prefix, CancellationToken cancellationToken = default)
+        {
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            await foreach (var blob in _public.GetBlobsAsync(prefix: prefix, cancellationToken: cancellationToken))
+            {
+                names.Add(blob.Name);
+            }
+            return names;
+        }
+
         public string GetPublicUrl(string blobPath)
         {
             var baseUrl = string.IsNullOrWhiteSpace(_settings.PublicBaseUrl)

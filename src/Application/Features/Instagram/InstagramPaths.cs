@@ -18,6 +18,11 @@ namespace Elysian.Application.Features.Instagram
             $"{Folder(tenantIdentifier, mediaId)}/{width}.webp";
 
         /// <summary>
+        /// Prefix of every Instagram thumbnail for the tenant
+        /// </summary>
+        public static string TenantPrefix(string tenantIdentifier) => $"{tenantIdentifier}/instagram/";
+
+        /// <summary>
         /// Prefix for deleting every variant of one post (trailing slash so 123 never matches 1234)
         /// </summary>
         public static string Prefix(string tenantIdentifier, string mediaId) =>

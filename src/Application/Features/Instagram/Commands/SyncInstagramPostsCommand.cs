@@ -17,9 +17,10 @@ namespace Elysian.Application.Features.Instagram.Commands
     /// <summary>
     /// Mirrors the tenant's latest Instagram posts into <see cref="InstagramPost"/>: new posts get WebP thumbnails
     /// (Instagram:ThumbnailWidths) made by the photo processor and uploaded to the public photos container, existing
-    /// posts get their caption and link updated, and posts that dropped out of the latest Instagram:PostCount are
-    /// deleted along with their thumbnails. Meant to run on a timer. Never throws for Instagram, image or storage
-    /// failures: a failed fetch leaves the mirror untouched, and a failed post is skipped and retried next run.
+    /// posts get their caption and link updated (and their thumbnails rebuilt if the files have gone missing), and
+    /// posts that dropped out of the latest Instagram:PostCount are deleted along with their thumbnails. Meant to run
+    /// on a timer. Never throws for Instagram, image or storage failures: a failed fetch leaves the mirror untouched,
+    /// and a failed post is skipped and retried next run.
     /// </summary>
     public record SyncInstagramPostsCommand : IRequest<InstagramSyncResult>;
 
@@ -30,7 +31,8 @@ namespace Elysian.Application.Features.Instagram.Commands
         Failed,
     }
 
-    public record InstagramSyncResult(InstagramSyncStatus Status, int Added = 0, int Updated = 0, int Removed = 0, int Failed = 0);
+    /// <param name="Repaired">Existing posts whose missing thumbnail files were rebuilt (also counted in Updated)</param>
+    public record InstagramSyncResult(InstagramSyncStatus Status, int Added = 0, int Updated = 0, int Removed = 0, int Failed = 0, int Repaired = 0);
 
     public class SyncInstagramPostsCommandHandler(ElysianContext context, IInstagramService instagramService,
         IInstagramTokenStore tokenStore, IPhotoStorage photoStorage, IPhotoProcessor photoProcessor, IMemoryCache cache,
@@ -92,7 +94,8 @@ namespace Elysian.Application.Features.Instagram.Commands
 
             var now = timeProvider.GetUtcNow();
             var existing = await context.InstagramPosts.ToDictionaryAsync(p => p.MediaId, cancellationToken);
-            int added = 0, updated = 0, removed = 0, failed = 0;
+            var stored = await ListStoredThumbnailsAsync(tenantIdentifier, cancellationToken);
+            int added = 0, updated = 0, repaired = 0, removed = 0, failed = 0;
 
             foreach (var item in media)
             {
@@ -111,6 +114,24 @@ namespace Elysian.Application.Features.Instagram.Commands
                     post.PostedAt = item.Timestamp;
                     post.SyncedAt = now;
                     updated++;
+
+                    // Thumbnails are only made when a post is first seen, so files lost since then (a storage reset,
+                    // a manual delete) would 404 forever. Rebuild them from Instagram's current image.
+                    if (stored != null && IsMissingThumbnails(tenantIdentifier, post, stored))
+                    {
+                        try
+                        {
+                            ApplyThumbnails(post, await UploadThumbnailsAsync(tenantIdentifier, item, settings.ThumbnailWidths, cancellationToken));
+                            repaired++;
+                            logger.LogWarning("Instagram media {MediaId} was missing thumbnails; they were rebuilt", item.Id);
+                        }
+                        catch (Exception ex) when (ex is InstagramApiException or PhotoProcessingException or RequestFailedException)
+                        {
+                            // The row stays as it was; retried next run, since the files are still missing
+                            logger.LogWarning("Instagram media {MediaId} is missing thumbnails and could not be rebuilt: {Error}", item.Id, ex.Message);
+                            failed++;
+                        }
+                    }
                     continue;
                 }
 
@@ -140,13 +161,50 @@ namespace Elysian.Application.Features.Instagram.Commands
             await context.SaveChangesAsync(cancellationToken);
             cache.Remove(GetInstagramPostsQueryHandler.CacheKey(tenantIdentifier));
 
-            logger.LogInformation("Instagram sync for tenant {Tenant}: {Added} added, {Updated} updated, {Removed} removed, {Failed} failed",
-                tenantIdentifier, added, updated, removed, failed);
-            return new InstagramSyncResult(InstagramSyncStatus.Synced, added, updated, removed, failed);
+            logger.LogInformation("Instagram sync for tenant {Tenant}: {Added} added, {Updated} updated, {Repaired} repaired, {Removed} removed, {Failed} failed",
+                tenantIdentifier, added, updated, repaired, removed, failed);
+            return new InstagramSyncResult(InstagramSyncStatus.Synced, added, updated, removed, failed, repaired);
         }
+
+        /// <summary>
+        /// Every thumbnail file the tenant has, from one listing; null if storage can't be listed, in which case
+        /// nothing is repaired this run rather than rebuilding every post
+        /// </summary>
+        private async Task<IReadOnlySet<string>?> ListStoredThumbnailsAsync(string tenantIdentifier, CancellationToken cancellationToken)
+        {
+            try
+            {
+                return await photoStorage.ListVariantsAsync(InstagramPaths.TenantPrefix(tenantIdentifier), cancellationToken);
+            }
+            catch (RequestFailedException ex)
+            {
+                logger.LogWarning("Instagram thumbnails could not be listed, so missing ones won't be repaired this run: {Error}", ex.Message);
+                return null;
+            }
+        }
+
+        private static bool IsMissingThumbnails(string tenantIdentifier, InstagramPost post, IReadOnlySet<string> stored) =>
+            post.VariantWidths.Count == 0
+            || post.VariantWidths.Any(w => !stored.Contains(InstagramPaths.Variant(tenantIdentifier, post.MediaId, w)));
 
         private async Task<InstagramPost> CreatePostAsync(string tenantIdentifier, InstagramMedia item, int[] widths,
             DateTimeOffset now, CancellationToken cancellationToken)
+        {
+            var post = new InstagramPost
+            {
+                MediaId = item.Id,
+                Permalink = item.Permalink,
+                Caption = item.Caption,
+                MediaType = item.MediaType,
+                PostedAt = item.Timestamp,
+                SyncedAt = now,
+            };
+            ApplyThumbnails(post, await UploadThumbnailsAsync(tenantIdentifier, item, widths, cancellationToken));
+            return post;
+        }
+
+        private async Task<ProcessedPhoto> UploadThumbnailsAsync(string tenantIdentifier, InstagramMedia item, int[] widths,
+            CancellationToken cancellationToken)
         {
             ProcessedPhoto processed;
             await using (var image = await instagramService.DownloadImageAsync(item.ImageUrl, cancellationToken))
@@ -160,19 +218,15 @@ namespace Elysian.Application.Features.Instagram.Commands
                     variant.Content, variant.ContentType, cancellationToken);
             }
 
-            return new InstagramPost
-            {
-                MediaId = item.Id,
-                Permalink = item.Permalink,
-                Caption = item.Caption,
-                MediaType = item.MediaType,
-                PostedAt = item.Timestamp,
-                Width = processed.Width,
-                Height = processed.Height,
-                Placeholder = processed.Placeholder,
-                VariantWidths = processed.Variants.Select(v => v.Width).OrderBy(w => w).ToList(),
-                SyncedAt = now,
-            };
+            return processed;
+        }
+
+        private static void ApplyThumbnails(InstagramPost post, ProcessedPhoto processed)
+        {
+            post.Width = processed.Width;
+            post.Height = processed.Height;
+            post.Placeholder = processed.Placeholder;
+            post.VariantWidths = processed.Variants.Select(v => v.Width).OrderBy(w => w).ToList();
         }
     }
 }
