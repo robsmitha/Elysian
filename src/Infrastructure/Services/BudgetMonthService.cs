@@ -78,8 +78,7 @@ namespace Elysian.Infrastructure.Services
                 Spending: thisMonth,
                 Income: income,
                 CommittedDebt: debtPlan,
-                // Phase 5 (goals) fills this in
-                CommittedGoals: 0,
+                CommittedGoals: await new GoalService(context, clock).CommittedForMonthAsync(userId, first, now, cancellationToken),
                 Upcoming: upcoming,
                 NotCounted: await NotCountedAsync(userId, first, last, cancellationToken)));
         }

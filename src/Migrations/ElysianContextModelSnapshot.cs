@@ -902,6 +902,53 @@ namespace Elysian.Migrations
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
+            modelBuilder.Entity("Elysian.Domain.Data.GoalContribution", b =>
+                {
+                    b.Property<int>("GoalContributionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("GoalContributionId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long?>("BankTransactionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("SavingsGoalId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("GoalContributionId");
+
+                    b.HasIndex("BankTransactionId")
+                        .IsUnique()
+                        .HasFilter("[BankTransactionId] IS NOT NULL");
+
+                    b.HasIndex("SavingsGoalId");
+
+                    b.ToTable("GoalContribution", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.IncomePayment", b =>
                 {
                     b.Property<int>("IncomePaymentId")
@@ -2158,6 +2205,98 @@ namespace Elysian.Migrations
                     b.ToTable("ProductType", (string)null);
                 });
 
+            modelBuilder.Entity("Elysian.Domain.Data.SavingsGoal", b =>
+                {
+                    b.Property<int>("SavingsGoalId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SavingsGoalId"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Cycle")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("CycleEnd")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateOnly>("CycleStart")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("FundingMode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Icon")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("LinkedAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("ModifiedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ModifiedByUserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PastCyclesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("StartingBalance")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TargetAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("SavingsGoalId");
+
+                    b.HasIndex("LinkedAccountId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("SavingsGoal", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.Story", b =>
                 {
                     b.Property<Guid>("StoryId")
@@ -2649,6 +2788,17 @@ namespace Elysian.Migrations
                     b.Navigation("InstitutionAccessItem");
                 });
 
+            modelBuilder.Entity("Elysian.Domain.Data.GoalContribution", b =>
+                {
+                    b.HasOne("Elysian.Domain.Data.SavingsGoal", "SavingsGoal")
+                        .WithMany("Contributions")
+                        .HasForeignKey("SavingsGoalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SavingsGoal");
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.IncomePayment", b =>
                 {
                     b.HasOne("Elysian.Domain.Data.IncomeSource", "IncomeSource")
@@ -2824,6 +2974,16 @@ namespace Elysian.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("Elysian.Domain.Data.SavingsGoal", b =>
+                {
+                    b.HasOne("Elysian.Domain.Data.FinancialAccount", "LinkedAccount")
+                        .WithMany()
+                        .HasForeignKey("LinkedAccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("LinkedAccount");
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.Story", b =>
                 {
                     b.HasOne("Elysian.Domain.Data.Photo", "HeroPhoto")
@@ -2934,6 +3094,11 @@ namespace Elysian.Migrations
                     b.Navigation("AccessUsers");
 
                     b.Navigation("Accounts");
+                });
+
+            modelBuilder.Entity("Elysian.Domain.Data.SavingsGoal", b =>
+                {
+                    b.Navigation("Contributions");
                 });
 
             modelBuilder.Entity("Elysian.Domain.Data.Story", b =>

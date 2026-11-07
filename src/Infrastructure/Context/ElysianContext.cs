@@ -36,6 +36,8 @@ namespace Elysian.Infrastructure.Context
         public DbSet<NotificationSettings> NotificationSettings { get; set; }
         public DbSet<Debt> Debts { get; set; }
         public DbSet<DebtPlan> DebtPlans { get; set; }
+        public DbSet<SavingsGoal> SavingsGoals { get; set; }
+        public DbSet<GoalContribution> GoalContributions { get; set; }
         public DbSet<IncomePayment> IncomePayments { get; set; }
         public DbSet<InstagramPost> InstagramPosts { get; set; }
         public DbSet<InstitutionAccessItem> InstitutionAccessItems { get; set; }
