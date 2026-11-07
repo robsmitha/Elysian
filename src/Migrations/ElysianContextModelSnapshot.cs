@@ -139,7 +139,8 @@ namespace Elysian.Migrations
 
                     b.HasIndex("CategoryId");
 
-                    b.HasIndex("PlaidTransactionId");
+                    b.HasIndex("PlaidTransactionId")
+                        .IsUnique();
 
                     b.HasIndex("FinancialAccountId", "BudgetDate");
 
@@ -2394,6 +2395,31 @@ namespace Elysian.Migrations
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
+            modelBuilder.Entity("Elysian.Domain.Data.SyncLease", b =>
+                {
+                    b.Property<int>("InstitutionAccessItemId")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("Holder")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("LeasedUntil")
+                        .IsConcurrencyToken()
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("InstitutionAccessItemId");
+
+                    b.ToTable("SyncLease", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.SyncRun", b =>
                 {
                     b.Property<long>("SyncRunId")
@@ -2992,6 +3018,15 @@ namespace Elysian.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("HeroPhoto");
+                });
+
+            modelBuilder.Entity("Elysian.Domain.Data.SyncLease", b =>
+                {
+                    b.HasOne("Elysian.Domain.Data.InstitutionAccessItem", null)
+                        .WithMany()
+                        .HasForeignKey("InstitutionAccessItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Elysian.Domain.Data.SyncRun", b =>

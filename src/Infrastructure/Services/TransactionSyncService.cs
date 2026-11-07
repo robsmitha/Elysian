@@ -27,6 +27,10 @@ namespace Elysian.Infrastructure.Services
         private const int IdBatchSize = 1000;
 
         private static readonly HashSet<string> TemporaryTypes = new(StringComparer.OrdinalIgnoreCase) { "API_ERROR", "INSTITUTION_ERROR", "RATE_LIMIT_EXCEEDED" };
+        /// <summary>How long a sync holds its bank; a crashed sync lets go when this runs out</summary>
+        private static readonly TimeSpan LeaseLength = TimeSpan.FromMinutes(10);
+        public const string SyncInProgress = "SYNC_IN_PROGRESS";
+
         private static readonly HashSet<string> DisconnectedCodes = new(StringComparer.OrdinalIgnoreCase) { "ITEM_NOT_FOUND", "USER_ACCOUNT_REVOKED" };
 
         public async Task<SyncOutcome> SyncAsync(int institutionAccessItemId, SyncTrigger trigger, CancellationToken cancellationToken = default)
@@ -50,14 +54,33 @@ namespace Elysian.Infrastructure.Services
             }
 
             var now = timeProvider.GetUtcNow();
+            // One sync per bank at a time; a second one tries again shortly (the queue retries it)
+            var holder = Guid.NewGuid();
+            if (!await TryTakeLeaseAsync(item.InstitutionAccessItemId, holder, now, cancellationToken))
+            {
+                logger.LogInformation("Item {Item} is already syncing; {Trigger} sync will try again", item.InstitutionAccessItemId, trigger);
+                return new SyncOutcome(false, ErrorCode: SyncInProgress, Retry: true);
+            }
+            try
+            {
+                return await SyncWithLeaseAsync(item, token.AccessToken, trigger, now, cancellationToken);
+            }
+            finally
+            {
+                await ReleaseLeaseAsync(item.InstitutionAccessItemId, holder);
+            }
+        }
+
+        private async Task<SyncOutcome> SyncWithLeaseAsync(InstitutionAccessItem item, string accessToken, SyncTrigger trigger, DateTimeOffset now, CancellationToken cancellationToken)
+        {
             var run = new SyncRun { InstitutionAccessItemId = item.InstitutionAccessItemId, Trigger = trigger, StartedAt = now };
 
             try
             {
-                await EnsureWebhookAsync(item, token.AccessToken);
+                await EnsureWebhookAsync(item, accessToken);
                 await EnsureInstitutionDetailsAsync(item);
 
-                var pass = await ReadChangesAsync(token.AccessToken, item.TransactionsCursor, cancellationToken);
+                var pass = await ReadChangesAsync(accessToken, item.TransactionsCursor, cancellationToken);
                 var counts = await ApplyAsync(item, pass, now, cancellationToken);
 
                 item.TransactionsCursor = pass.Cursor;
@@ -101,6 +124,49 @@ namespace Elysian.Infrastructure.Services
 
                 logger.LogWarning("Sync of item {Item} ({Trigger}) failed: {Type}/{Code}", item.InstitutionAccessItemId, trigger, type, code);
                 return new SyncOutcome(false, ErrorCode: code, Retry: retry);
+            }
+        }
+
+        /// <summary>Takes the bank's sync lease if nobody holds it (or the holder's time ran out). Saved straight away so other syncs see it.</summary>
+        private async Task<bool> TryTakeLeaseAsync(int itemId, Guid holder, DateTimeOffset now, CancellationToken cancellationToken)
+        {
+            var lease = await context.SyncLeases.FirstOrDefaultAsync(l => l.InstitutionAccessItemId == itemId, cancellationToken);
+            if (lease == null)
+            {
+                lease = context.SyncLeases.Add(new SyncLease { InstitutionAccessItemId = itemId }).Entity;
+            }
+            else if (lease.LeasedUntil > now)
+            {
+                return false;
+            }
+            lease.LeasedUntil = now + LeaseLength;
+            lease.Holder = holder;
+            try
+            {
+                await context.SaveChangesAsync(cancellationToken);
+                return true;
+            }
+            catch (DbUpdateException)
+            {
+                // Another sync took it first (a duplicate insert, or a concurrency conflict on an expired lease)
+                context.Entry(lease).State = EntityState.Detached;
+                return false;
+            }
+        }
+
+        private async Task ReleaseLeaseAsync(int itemId, Guid holder)
+        {
+            try
+            {
+                var lease = await context.SyncLeases.FirstOrDefaultAsync(l => l.InstitutionAccessItemId == itemId && l.Holder == holder);
+                if (lease == null) return;
+                lease.LeasedUntil = DateTimeOffset.MinValue;
+                await context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                // Not fatal: the lease runs out on its own
+                logger.LogWarning(ex, "Couldn't release the sync lease for item {Item}", itemId);
             }
         }
 

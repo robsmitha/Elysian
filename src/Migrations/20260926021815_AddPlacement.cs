@@ -50,13 +50,13 @@ namespace Elysian.Migrations
                 column: "PhotoId");
 
             // Each old slot filled several spots; give every spot its own row so they can differ from now on
-            migrationBuilder.Sql($"""
+            migrationBuilder.Sql(Deferred($"""
                 INSERT INTO [Placement] ([Key], [PhotoId], [TenantId], [CreatedByUserId], [CreatedAt], [ModifiedByUserId], [ModifiedAt], [IsDeleted])
                 SELECT m.[Key], p.[PhotoId], p.[TenantId], p.[ModifiedByUserId], SYSDATETIMEOFFSET(), p.[ModifiedByUserId], SYSDATETIMEOFFSET(), 0
                 FROM [Photo] p
                 JOIN (VALUES {SlotToSpots}) m([Slot], [Key]) ON m.[Slot] = p.[Slot]
                 WHERE p.[IsDeleted] = 0;
-                """);
+                """));
 
             migrationBuilder.DropIndex(
                 name: "AK_Photo_Slot",
@@ -78,7 +78,7 @@ namespace Elysian.Migrations
                 nullable: true);
 
             // Best effort: a slot goes back to whichever photo fills its first spot
-            migrationBuilder.Sql($"""
+            migrationBuilder.Sql(Deferred($"""
                 UPDATE p SET [Slot] = s.[Slot]
                 FROM [Photo] p
                 JOIN (
@@ -89,7 +89,7 @@ namespace Elysian.Migrations
                     JOIN (VALUES {SlotToSpots}) m([Slot], [Key]) ON m.[Key] = pl.[Key]
                     WHERE pl.[IsDeleted] = 0
                 ) s ON s.[PhotoId] = p.[PhotoId] AND s.rn = 1 AND s.photoRn = 1;
-                """);
+                """));
 
             migrationBuilder.CreateIndex(
                 name: "AK_Photo_Slot",
@@ -101,6 +101,11 @@ namespace Elysian.Migrations
             migrationBuilder.DropTable(
                 name: "Placement");
         }
+
+        /// <summary>
+        /// Runs SQL through EXEC so idempotent scripts don't compile it against a schema where its columns no longer exist
+        /// </summary>
+        private static string Deferred(string sql) => $"EXEC(N'{sql.Replace("'", "''")}');";
 
         /// <summary>
         /// Old photo-named slots and the site spots each one filled (spot keys are defined by the site)

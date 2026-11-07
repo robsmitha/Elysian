@@ -34,6 +34,45 @@ namespace Elysian.Tests.Financial
         private List<BankTransaction> Stored() => host.Context.BankTransactions.AsNoTracking().OrderBy(t => t.PlaidTransactionId).ToList();
 
         [Fact]
+        public async Task A_second_sync_waits_while_one_is_running()
+        {
+            // Another instance holds the bank (the first sync after linking, while the webhook's sync arrives)
+            host.Context.SyncLeases.Add(new SyncLease { InstitutionAccessItemId = item.InstitutionAccessItemId, LeasedUntil = clock.Now.AddMinutes(5), Holder = Guid.NewGuid() });
+            host.Context.SaveChanges();
+            Returns(null, Page("c1", added: [Txn("t1", 86.42)]));
+
+            var outcome = await service.SyncAsync(item.InstitutionAccessItemId, SyncTrigger.Webhook);
+
+            Assert.Equal((false, true, TransactionSyncService.SyncInProgress), (outcome.Succeeded, outcome.Retry, outcome.ErrorCode));
+            Assert.Empty(Stored());
+        }
+
+        [Fact]
+        public async Task A_lease_left_by_a_crashed_sync_runs_out()
+        {
+            host.Context.SyncLeases.Add(new SyncLease { InstitutionAccessItemId = item.InstitutionAccessItemId, LeasedUntil = clock.Now.AddMinutes(-1), Holder = Guid.NewGuid() });
+            host.Context.SaveChanges();
+            Returns(null, Page("c1", added: [Txn("t1", 86.42)]));
+
+            Assert.True((await service.SyncAsync(item.InstitutionAccessItemId, SyncTrigger.Webhook)).Succeeded);
+            Assert.Single(Stored());
+        }
+
+        [Fact]
+        public async Task Syncs_one_after_another_store_each_transaction_once()
+        {
+            Returns(null, Page("c1", added: [Txn("t1", 86.42), Txn("t2", 12.00)]));
+            Returns("c1", Page("c2", modified: [Txn("t1", 86.42)]));
+
+            Assert.True((await service.SyncAsync(item.InstitutionAccessItemId, SyncTrigger.Initial)).Succeeded);
+            // The lease was let go, so the webhook's sync right after runs and only updates
+            var second = await service.SyncAsync(item.InstitutionAccessItemId, SyncTrigger.Webhook);
+
+            Assert.Equal((true, 0, 1), (second.Succeeded, second.Added, second.Modified));
+            Assert.Equal(["t1", "t2"], Stored().Select(t => t.PlaidTransactionId));
+        }
+
+        [Fact]
         public async Task The_first_sync_stores_accounts_transactions_and_the_cursor()
         {
             Returns(null, Page("c1", hasMore: true, added: [Txn("t1", 86.42), Txn("t2", -32.50, name: "Amazon")]));

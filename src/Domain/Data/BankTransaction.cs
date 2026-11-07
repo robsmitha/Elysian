@@ -85,7 +85,8 @@ namespace Elysian.Domain.Data
                     .HasForeignKey(t => t.FinancialAccountId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                builder.HasIndex(t => t.PlaidTransactionId);
+                // A transaction is stored once, however many syncs see it
+                builder.HasIndex(t => t.PlaidTransactionId).IsUnique();
                 builder.HasIndex(t => new { t.FinancialAccountId, t.BudgetDate });
 
                 builder.ToTable("BankTransaction").IsMultiTenant();
