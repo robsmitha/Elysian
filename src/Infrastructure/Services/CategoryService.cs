@@ -125,12 +125,39 @@ namespace Elysian.Infrastructure.Services
             await context.SaveChangesAsync();
         }
 
+        /// <summary>
+        /// Pages that load at the same moment can each add the defaults, leaving two of each. The extras are merged into
+        /// the oldest copy (their transactions, splits, rules and targets move) and archived.
+        /// </summary>
+        private async Task MergeDuplicateDefaultsAsync(string userId, List<FinancialCategory> mine)
+        {
+            var duplicates = mine.Where(c => c.SystemKey != null && !c.IsArchived)
+                .GroupBy(c => c.SystemKey!)
+                .Where(g => g.Count() > 1)
+                .ToList();
+            foreach (var g in duplicates)
+            {
+                var keep = g.Min(c => c.FinancialCategoryId);
+                foreach (var extra in g.Where(c => c.FinancialCategoryId != keep))
+                {
+                    await ArchiveCategoryAsync(userId, extra.FinancialCategoryId, keep);
+                    // Archived and no longer a default, so it isn't picked again
+                    extra.SystemKey = null;
+                }
+            }
+            if (duplicates.Count > 0)
+            {
+                await context.SaveChangesAsync();
+            }
+        }
+
         public async Task EnsureDefaultsAsync(string userId)
         {
             var mine = await Mine(userId).ToListAsync();
             // Done once: after that the person decides (an archived default stays archived)
             if (mine.Any(c => c.SystemKey != null))
             {
+                await MergeDuplicateDefaultsAsync(userId, mine);
                 return;
             }
 

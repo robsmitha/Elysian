@@ -97,6 +97,29 @@ namespace Elysian.Tests.Financial
             (await host.Context.FinancialCategories.SingleAsync(c => c.UserId == Me && c.SystemKey == key)).FinancialCategoryId;
 
         [Fact]
+        public async Task Defaults_added_twice_by_pages_loading_at_once_are_merged()
+        {
+            await categories.EnsureDefaultsAsync(Me);
+            // A second copy of a default, as two page loads at the same moment would leave
+            var extra = new FinancialCategory { UserId = Me, Name = "Subscriptions", SystemKey = "subscriptions", Group = CategoryGroup.Fixed };
+            host.Context.FinancialCategories.Add(extra);
+            var t = Add(card, 15.49m, "Hulu", "ENTERTAINMENT_TV_AND_MOVIES");
+            await host.Context.SaveChangesAsync();
+            t.CategoryId = extra.FinancialCategoryId;
+            t.CategorySource = ClassificationSource.User;
+            await host.Context.SaveChangesAsync();
+
+            await classifier.ClassifyAsync(Me);
+
+            var original = await CategoryId("subscriptions");
+            Assert.NotEqual(extra.FinancialCategoryId, original);
+            Assert.True(extra.IsArchived);
+            Assert.Null(extra.SystemKey);
+            // Its transactions moved to the original, and the choice is still the person's
+            Assert.Equal((original, ClassificationSource.User), (t.CategoryId, t.CategorySource));
+        }
+
+        [Fact]
         public async Task Plaid_categories_land_in_the_persons_categories()
         {
             var t = Add(card, 86.42m, "Publix", "FOOD_AND_DRINK_GROCERIES");

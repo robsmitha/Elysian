@@ -55,9 +55,13 @@ namespace Elysian.Infrastructure.Services
             }
 
             await categoryService.EnsureDefaultsAsync(userId);
-            var categoryByKey = await context.FinancialCategories
-                .Where(c => c.UserId == userId && c.SystemKey != null && !c.IsArchived)
-                .ToDictionaryAsync(c => c.SystemKey!, c => c.FinancialCategoryId, cancellationToken);
+            // If a default somehow exists twice, the oldest one is used
+            var categoryByKey = (await context.FinancialCategories
+                    .Where(c => c.UserId == userId && c.SystemKey != null && !c.IsArchived)
+                    .Select(c => new { c.SystemKey, c.FinancialCategoryId })
+                    .ToListAsync(cancellationToken))
+                .GroupBy(c => c.SystemKey!)
+                .ToDictionary(g => g.Key, g => g.Min(c => c.FinancialCategoryId));
             var rules = await context.CategoryRules
                 .Where(r => r.UserId == userId)
                 .OrderBy(r => r.Priority).ThenBy(r => r.CategoryRuleId)

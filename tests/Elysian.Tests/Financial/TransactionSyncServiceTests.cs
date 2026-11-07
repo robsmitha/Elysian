@@ -34,6 +34,52 @@ namespace Elysian.Tests.Financial
         private List<BankTransaction> Stored() => host.Context.BankTransactions.AsNoTracking().OrderBy(t => t.PlaidTransactionId).ToList();
 
         [Fact]
+        public async Task Ids_that_differ_only_in_case_are_stored_once()
+        {
+            // SQL Server compares these ids without case, so storing both would break the unique index
+            Returns(null, Page("c1", added: [Txn("03OxZ9AMyMtbL", 38.91), Txn("03oxz9amymtbl", 38.91)]));
+
+            var outcome = await service.SyncAsync(item.InstitutionAccessItemId, SyncTrigger.Initial);
+
+            Assert.True(outcome.Succeeded);
+            Assert.Single(Stored());
+        }
+
+        [Fact]
+        public async Task An_unexpected_failure_is_recorded_and_lets_go_of_the_bank()
+        {
+            plaid.Setup(p => p.SyncTransactionsAsync("access-sandbox-1", null)).ThrowsAsync(new InvalidOperationException("boom"));
+
+            var outcome = await service.SyncAsync(item.InstitutionAccessItemId, SyncTrigger.Manual);
+
+            Assert.Equal((false, TransactionSyncService.InternalError), (outcome.Succeeded, outcome.ErrorCode));
+            var saved = await host.Context.InstitutionAccessItems.AsNoTracking().SingleAsync();
+            Assert.Equal((ItemStatus.Error, TransactionSyncService.InternalError), (saved.Status, saved.ErrorCode));
+            Assert.Equal(TransactionSyncService.InternalError, (await host.Context.SyncRuns.AsNoTracking().SingleAsync()).ErrorCode);
+            Assert.True((await host.Context.SyncLeases.AsNoTracking().SingleAsync()).LeasedUntil < clock.Now);
+
+            // The next try runs (nothing is left holding the bank) and clears the error
+            plaid.Setup(p => p.SyncTransactionsAsync("access-sandbox-1", null)).ReturnsAsync(Page("c1", added: [Txn("t1", 5)]));
+            Assert.True((await service.SyncAsync(item.InstitutionAccessItemId, SyncTrigger.Manual)).Succeeded);
+            Assert.Equal(ItemStatus.Healthy, (await host.Context.InstitutionAccessItems.AsNoTracking().SingleAsync()).Status);
+        }
+
+        [Fact]
+        public async Task A_bank_with_no_owner_in_this_tenant_is_left_alone()
+        {
+            // Banks aren't tenant-scoped: another tenant's nightly job would otherwise see this one
+            host.Context.InstitutionAccessItemUsers.RemoveRange(host.Context.InstitutionAccessItemUsers);
+            host.Context.SaveChanges();
+            Returns(null, Page("c1", added: [Txn("t1", 5)]));
+
+            var outcome = await service.SyncAsync(item.InstitutionAccessItemId, SyncTrigger.Nightly);
+
+            Assert.Equal((true, "other_tenant"), (outcome.Skipped, outcome.ErrorCode));
+            Assert.Empty(Stored());
+            Assert.Empty(await service.GetItemsDueForSyncAsync(TimeSpan.FromHours(24)));
+        }
+
+        [Fact]
         public async Task A_second_sync_waits_while_one_is_running()
         {
             // Another instance holds the bank (the first sync after linking, while the webhook's sync arrives)

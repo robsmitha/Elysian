@@ -30,6 +30,8 @@ namespace Elysian.Infrastructure.Services
         /// <summary>How long a sync holds its bank; a crashed sync lets go when this runs out</summary>
         private static readonly TimeSpan LeaseLength = TimeSpan.FromMinutes(10);
         public const string SyncInProgress = "SYNC_IN_PROGRESS";
+        /// <summary>A failure that isn't Plaid's (a database error or a bug); details are in the logs</summary>
+        public const string InternalError = "INTERNAL_ERROR";
 
         private static readonly HashSet<string> DisconnectedCodes = new(StringComparer.OrdinalIgnoreCase) { "ITEM_NOT_FOUND", "USER_ACCOUNT_REVOKED" };
 
@@ -45,6 +47,12 @@ namespace Elysian.Infrastructure.Services
             if (item.Status == ItemStatus.Disconnected)
             {
                 return SyncOutcome.Skip("disconnected");
+            }
+            // Banks aren't tenant-scoped but their accounts and transactions are. Under another tenant the stored rows are
+            // invisible and the sync would store everything again, so it only runs under a tenant one of the owners is in.
+            if (!await OwnedInThisTenant().AnyAsync(i => i.InstitutionAccessItemId == item.InstitutionAccessItemId, cancellationToken))
+            {
+                return SyncOutcome.Skip("other_tenant");
             }
 
             var token = await accessTokenService.GetAccessTokenForSyncAsync(institutionAccessItemId);
@@ -125,6 +133,26 @@ namespace Elysian.Infrastructure.Services
                 logger.LogWarning("Sync of item {Item} ({Trigger}) failed: {Type}/{Code}", item.InstitutionAccessItemId, trigger, type, code);
                 return new SyncOutcome(false, ErrorCode: code, Retry: retry);
             }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Anything else (a database error, a bug): nothing from this pass is kept, but the failure shows on the
+                // accounts page and in Sync activity instead of disappearing into the logs
+                logger.LogError(ex, "Sync of item {Item} ({Trigger}) failed unexpectedly", item.InstitutionAccessItemId, trigger);
+                context.ChangeTracker.Clear();
+                var fresh = await context.InstitutionAccessItems.FirstAsync(i => i.InstitutionAccessItemId == item.InstitutionAccessItemId, cancellationToken);
+                fresh.Status = ItemStatus.Error;
+                fresh.ErrorCode = InternalError;
+                context.SyncRuns.Add(new SyncRun
+                {
+                    InstitutionAccessItemId = item.InstitutionAccessItemId,
+                    Trigger = trigger,
+                    StartedAt = now,
+                    FinishedAt = timeProvider.GetUtcNow(),
+                    ErrorCode = InternalError
+                });
+                await context.SaveChangesAsync(cancellationToken);
+                return new SyncOutcome(false, ErrorCode: InternalError);
+            }
         }
 
         /// <summary>Takes the bank's sync lease if nobody holds it (or the holder's time ran out). Saved straight away so other syncs see it.</summary>
@@ -158,6 +186,8 @@ namespace Elysian.Infrastructure.Services
         {
             try
             {
+                // Whatever this sync left unsaved isn't retried here
+                context.ChangeTracker.Clear();
                 var lease = await context.SyncLeases.FirstOrDefaultAsync(l => l.InstitutionAccessItemId == itemId && l.Holder == holder);
                 if (lease == null) return;
                 lease.LeasedUntil = DateTimeOffset.MinValue;
@@ -170,11 +200,19 @@ namespace Elysian.Infrastructure.Services
             }
         }
 
+        /// <summary>Banks with an owner in the current tenant (Users is tenant-scoped; banks and their owner links aren't)</summary>
+        private IQueryable<InstitutionAccessItem> OwnedInThisTenant()
+        {
+            var tenantUsers = context.Users.Select(u => u.UserId);
+            return context.InstitutionAccessItems.Where(i => i.AccessUsers.Any(au => tenantUsers.Contains(au.UserId)));
+        }
+
         public async Task<List<int>> GetItemsDueForSyncAsync(TimeSpan olderThan, CancellationToken cancellationToken = default)
         {
             var now = timeProvider.GetUtcNow();
             var cutoff = now - olderThan;
-            var active = await context.InstitutionAccessItems
+            // Only this tenant's banks: the nightly job runs once per tenant
+            var active = await OwnedInThisTenant()
                 .Where(i => i.RemovedAt == null && i.Status != ItemStatus.Disconnected)
                 .ToListAsync(cancellationToken);
 
@@ -235,8 +273,15 @@ namespace Elysian.Infrastructure.Services
             var accounts = UpsertAccounts(item, pass.Accounts, now);
 
             // A transaction can appear more than once in a pass (added, then modified); the last version wins
-            var upserts = pass.Upserts.GroupBy(t => t.transaction_id).Select(g => g.Last()).ToList();
-            var removedIds = pass.Removed.Where(id => !string.IsNullOrEmpty(id)).Distinct().ToList();
+            // Ids are compared as SQL Server does (case-insensitive), or two ids differing only in case would both be inserted
+            var groups = pass.Upserts.GroupBy(t => t.transaction_id, StringComparer.OrdinalIgnoreCase).ToList();
+            foreach (var g in groups.Where(g => g.Select(t => t.transaction_id).Distinct(StringComparer.Ordinal).Count() > 1))
+            {
+                logger.LogWarning("Plaid sent transaction ids that differ only in case for item {Item}: {Ids}; keeping the last",
+                    item.InstitutionAccessItemId, string.Join(", ", g.Select(t => t.transaction_id).Distinct(StringComparer.Ordinal)));
+            }
+            var upserts = groups.Select(g => g.Last()).ToList();
+            var removedIds = pass.Removed.Where(id => !string.IsNullOrEmpty(id)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             // Pending rows that just posted are loaded too, so the person's choices on them can move to the posted row
             var pendingIds = upserts.Where(t => !string.IsNullOrEmpty(t.pending_transaction_id)).Select(t => t.pending_transaction_id!);
             var existing = await LoadExistingAsync(upserts.Select(t => t.transaction_id).Concat(removedIds).Concat(pendingIds), cancellationToken);
@@ -353,8 +398,8 @@ namespace Elysian.Infrastructure.Services
 
         private async Task<Dictionary<string, BankTransaction>> LoadExistingAsync(IEnumerable<string> ids, CancellationToken cancellationToken)
         {
-            var result = new Dictionary<string, BankTransaction>();
-            foreach (var batch in ids.Distinct().Chunk(IdBatchSize))
+            var result = new Dictionary<string, BankTransaction>(StringComparer.OrdinalIgnoreCase);
+            foreach (var batch in ids.Distinct(StringComparer.OrdinalIgnoreCase).Chunk(IdBatchSize))
             {
                 var rows = await context.BankTransactions.Where(t => batch.Contains(t.PlaidTransactionId)).ToListAsync(cancellationToken);
                 foreach (var row in rows)
