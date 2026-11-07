@@ -64,6 +64,10 @@ namespace Elysian.Infrastructure.Services
             var upcomingTo = last > now.AddDays(21) ? last : now.AddDays(21);
             var upcoming = RecurringDetector.Upcoming(recurring, now > first ? now : first, upcomingTo);
 
+            // The debt plan's monthly amount is committed from the month it started
+            var debtPlan = await context.DebtPlans.Where(p => p.UserId == userId && p.StartDate <= first)
+                .Select(p => (decimal?)p.MonthlyAmount).FirstOrDefaultAsync(cancellationToken) ?? 0;
+
             return BudgetCalculator.Calculate(new BudgetCalculator.Input(
                 Year: year,
                 Month: month,
@@ -73,8 +77,8 @@ namespace Elysian.Infrastructure.Services
                 Targets: targets,
                 Spending: thisMonth,
                 Income: income,
-                // Phase 4 (debt plan) and Phase 5 (goals) fill these in
-                CommittedDebt: 0,
+                CommittedDebt: debtPlan,
+                // Phase 5 (goals) fills this in
                 CommittedGoals: 0,
                 Upcoming: upcoming,
                 NotCounted: await NotCountedAsync(userId, first, last, cancellationToken)));

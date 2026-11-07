@@ -129,6 +129,7 @@ namespace Elysian.Infrastructure
             services.AddTransient<ITransactionClassifier, TransactionClassifier>();
             services.AddTransient<ITransactionService, TransactionService>();
             services.AddTransient<IBudgetMonthService, BudgetMonthService>();
+            services.AddTransient<IDebtService, DebtService>();
             services.AddTransient<PlaidWebhookVerifier>();
             services.AddTransient<IPlaidWebhookService, PlaidWebhookService>();
             return services;
