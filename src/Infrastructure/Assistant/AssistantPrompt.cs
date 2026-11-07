@@ -6,12 +6,12 @@ using System.Text.Json;
 namespace Elysian.Infrastructure.Assistant
 {
     /// <summary>
-    /// The system prompt (a versioned file, Prompts/budget-assistant-v1.md) and the answer format. Both are the same on
+    /// The system prompt (a versioned file, Prompts/budget-assistant-v2.md) and the answer format. Both are the same on
     /// every request so they're cached; everything that changes per request goes in the user turn (<see cref="Context"/>).
     /// </summary>
     public static class AssistantPrompt
     {
-        public const string Version = "budget-assistant-v1";
+        public const string Version = "budget-assistant-v2";
 
         public static readonly string System = Load($"{Version}.md");
 
@@ -19,7 +19,7 @@ namespace Elysian.Infrastructure.Assistant
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["status", "answer", "highlights", "chart_kind", "chart_tool_call_id", "links", "follow_ups"],
+          "required": ["status", "answer", "highlights", "chart_kind", "chart_tool_call_id", "links", "follow_ups", "action_id"],
           "properties": {
             "status": { "type": "string", "enum": ["answered", "needs_clarification", "no_data", "out_of_scope"] },
             "answer": { "type": "string" },
@@ -43,7 +43,8 @@ namespace Elysian.Infrastructure.Assistant
                 "properties": { "label": { "type": "string" }, "to": { "type": "string" } }
               }
             },
-            "follow_ups": { "type": "array", "items": { "type": "string" } }
+            "follow_ups": { "type": "array", "items": { "type": "string" } },
+            "action_id": { "type": "string" }
           }
         }
         """).RootElement.Clone();

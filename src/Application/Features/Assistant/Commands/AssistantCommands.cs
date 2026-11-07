@@ -32,10 +32,17 @@ namespace Elysian.Application.Features.Assistant.Commands
         }
     }
 
-    public class AskAssistantCommandHandler(IAssistantService assistant, IClaimsPrincipalAccessor principal) : IRequestHandler<AskAssistantCommand, AssistantReply>
+    public class AskAssistantCommandHandler(IAssistantService assistant, IClaimsPrincipalAccessor principal, IIdentityService identity)
+        : IRequestHandler<AskAssistantCommand, AssistantReply>
     {
-        public Task<AssistantReply> Handle(AskAssistantCommand request, CancellationToken cancellationToken) =>
-            assistant.AskAsync(principal.UserId!, new AskAssistantRequest(request.Question, request.History, request.Today, request.Page, request.PageMonth), cancellationToken);
+        public async Task<AssistantReply> Handle(AskAssistantCommand request, CancellationToken cancellationToken)
+        {
+            // Proposals are shown to anyone who can read budgets; only budget write can confirm them
+            var user = await identity.GetOrCreateAsync(principal.Principal!);
+            var canChange = await identity.AuthorizeAsync(user, PolicyNames.BudgetWrite);
+            return await assistant.AskAsync(principal.UserId!,
+                new AskAssistantRequest(request.Question, request.History, request.Today, request.Page, request.PageMonth, canChange), cancellationToken);
+        }
     }
 
     [Authorize(Policy = PolicyNames.BudgetRead)]

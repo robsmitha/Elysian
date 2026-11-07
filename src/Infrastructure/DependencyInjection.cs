@@ -153,6 +153,7 @@ namespace Elysian.Infrastructure
             services.AddTransient<AssistantLimiter>();
             services.AddTransient<AssistantTools>();
             services.AddTransient<IAssistantService, AssistantService>();
+            services.AddTransient<IAssistantActionService, AssistantActions>();
             return services;
         }
 

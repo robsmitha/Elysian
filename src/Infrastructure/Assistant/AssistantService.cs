@@ -102,7 +102,12 @@ namespace Elysian.Infrastructure.Assistant
             public readonly List<decimal> Numbers = [];
             public readonly HashSet<string> Links = [];
             public readonly Dictionary<string, AssistantChart> Charts = [];
+            /// <summary>Proposals this question made, by action id</summary>
+            public readonly Dictionary<string, AssistantActionModel> Actions = [];
         }
+
+        /// <summary>Said instead when the answer keeps claiming a proposed change was already made</summary>
+        public const string ProposedOnly = "Here’s what I’d change. Nothing changes until you confirm it below.";
 
         private async Task<(AssistantOutcome, AssistantReply)> AnswerAsync(string userId, DateOnly today, AskAssistantRequest request, Run run, CancellationToken ct)
         {
@@ -159,19 +164,31 @@ namespace Elysian.Infrastructure.Assistant
                     continue;
                 }
 
-                var check = AnswerChecks.Check(draft, run.Numbers, request.Question, run.Links, run.Charts.Keys.ToHashSet());
+                var check = AnswerChecks.Check(draft, run.Numbers, request.Question, run.Links, run.Charts.Keys.ToHashSet(), run.Actions.Keys.ToHashSet());
                 if (!check.Passed)
                 {
-                    if (run.Retried) break;
+                    if (run.Retried)
+                    {
+                        // The numbers were fine and a proposal is waiting: show the card with plain words rather than nothing
+                        if (check.UnsupportedNumbers.Count == 0) return (AssistantOutcome.Answered, Build(check.Draft with { Answer = ProposedOnly, Highlights = [] }, run, request.CanChange));
+                        break;
+                    }
                     run.Retried = true;
                     messages.Add(new AssistantResponse(response));
-                    messages.Add(new UserText(
-                        $"Your answer wasn't shown: these numbers don't appear in any tool result: {string.Join(", ", check.UnsupportedNumbers)}. " +
-                        "Call a tool that returns them, or leave them out, then reply again with only the JSON object."));
+                    var problems = new List<string>();
+                    if (check.UnsupportedNumbers.Count > 0)
+                    {
+                        problems.Add($"these numbers don't appear in any tool result: {string.Join(", ", check.UnsupportedNumbers)}. Call a tool that returns them, or leave them out");
+                    }
+                    if (check.ClaimsDone)
+                    {
+                        problems.Add("it says the change was made, but nothing changes until the person taps Confirm on the card. Describe it as a proposal, e.g. \"Here's what I'd change. Confirm below to apply it.\"");
+                    }
+                    messages.Add(new UserText($"Your answer wasn't shown: {string.Join("; and ", problems)}. Then reply again with only the JSON object."));
                     continue;
                 }
 
-                return (AssistantOutcome.Answered, Build(check.Draft, run));
+                return (AssistantOutcome.Answered, Build(check.Draft, run, request.CanChange));
             }
             return (AssistantOutcome.Fallback, Short("fallback", Fallback, run));
         }
@@ -183,6 +200,7 @@ namespace Elysian.Infrastructure.Assistant
             AnswerChecks.CollectNumbers(doc.RootElement, run.Numbers);
             CollectLinks(doc.RootElement, run.Links);
             if (result.Chart != null) run.Charts[callId] = result.Chart;
+            if (result.Action != null) run.Actions[result.Action.Id.ToString()] = result.Action;
         }
 
         private static void CollectLinks(JsonElement e, HashSet<string> into)
@@ -201,10 +219,15 @@ namespace Elysian.Infrastructure.Assistant
             }
         }
 
-        private static AssistantReply Build(AnswerDraft draft, Run run)
+        private static AssistantReply Build(AnswerDraft draft, Run run, bool canChange)
         {
             var chart = draft.ChartKind != "none" && run.Charts.TryGetValue(draft.ChartToolCallId, out var c) ? c with { Kind = draft.ChartKind } : null;
-            return new AssistantReply(draft.Status, draft.Answer, draft.Highlights, chart, draft.Links, draft.FollowUps, [.. run.Steps], Empty);
+            // The card the answer names; if it forgot to name one and there's exactly one, that one (one proposal per answer)
+            var action = run.Actions.TryGetValue(draft.ActionId, out var a) ? a
+                : draft.ActionId.Length == 0 && run.Actions.Count == 1 ? run.Actions.Values.First()
+                : null;
+            return new AssistantReply(draft.Status, draft.Answer, draft.Highlights, chart, draft.Links, draft.FollowUps, [.. run.Steps], Empty,
+                action == null ? null : action with { CanConfirm = canChange });
         }
 
         private static AssistantReply Short(string status, string text, Run run) => new(status, text, [], null, [], [], [.. run.Steps], Empty);

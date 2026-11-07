@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Elysian.Infrastructure.Assistant
 {
     /// <summary>What one tool call produced: the JSON for the model, a label for "How I got this", and a chart if it has a series</summary>
-    public record ToolOutcome(string Json, bool IsError, string Step, AssistantChart? Chart);
+    public record ToolOutcome(string Json, bool IsError, string Step, AssistantChart? Chart, AssistantActionModel? Action = null);
 
     /// <summary>A tool's input didn't make sense (a bad date, an id that isn't the person's). Goes back to the model as an error.</summary>
     public class ToolInputException(string message) : Exception(message);
@@ -23,7 +23,8 @@ namespace Elysian.Infrastructure.Assistant
     /// accounts on the tenant-filtered context; the model never supplies a user id. Totals, averages and comparisons are
     /// worked out here (or in <see cref="SpendingMath"/>) so the model never does arithmetic.
     /// </summary>
-    public class AssistantTools(ElysianContext context, IBudgetMonthService budgets, IGoalService goals, IDebtService debts)
+    public partial class AssistantTools(ElysianContext context, IBudgetMonthService budgets, IGoalService goals, IDebtService debts,
+        ITransactionService transactions, TimeProvider clock)
     {
         public const int MaxRows = 25;
         public const int MaxGroups = 15;
@@ -54,7 +55,7 @@ namespace Elysian.Infrastructure.Assistant
                 { "type": "object", "properties": { {{properties}} }, "required": [{{required}}], "additionalProperties": false }
                 """).RootElement.Clone());
 
-        public static readonly IReadOnlyList<ToolDefinition> Definitions =
+        private static readonly IReadOnlyList<ToolDefinition> ReadDefinitions =
         [
             Def("list_accounts_and_categories",
                 "The person's linked accounts (with ids, type, budget role and balance) and their active categories (ids, groups). The context already lists names; use this for ids, balances or a refresh.",
@@ -121,12 +122,21 @@ namespace Elysian.Infrastructure.Assistant
                 """),
         ];
 
+        /// <summary>The read-only lookups, then the propose_* tools (which only save a proposal for the person to confirm)</summary>
+        public static readonly IReadOnlyList<ToolDefinition> Definitions = [.. ReadDefinitions, .. ActionDefinitions()];
+
         // ---- running a call ----
 
         public async Task<ToolOutcome> RunAsync(string userId, DateOnly today, ModelToolCall call, CancellationToken cancellationToken)
         {
             try
             {
+                if (ProposeTools.Contains(call.Name))
+                {
+                    var (proposal, proposed, card) = await ProposeAsync(userId, today, call, cancellationToken);
+                    return new ToolOutcome(JsonSerializer.Serialize(proposal, Json), false, proposed, null, card);
+                }
+
                 var input = new ToolInput(call.Input);
                 var (result, step, chart) = call.Name switch
                 {
@@ -807,6 +817,15 @@ namespace Elysian.Infrastructure.Assistant
             ? v.ValueKind == JsonValueKind.Number && v.TryGetDecimal(out var d) ? d
             : decimal.TryParse(v.ToString().TrimStart('$'), NumberStyles.Number, CultureInfo.InvariantCulture, out var e) ? e
             : throw new ToolInputException($"{name} must be a number.")
+            : null;
+
+        public bool? Bool(string name) => Get(name) is { } v
+            ? v.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                _ => bool.TryParse(v.ToString(), out var b) ? b : throw new ToolInputException($"{name} must be true or false.")
+            }
             : null;
 
         public DateOnly? Date(string name)

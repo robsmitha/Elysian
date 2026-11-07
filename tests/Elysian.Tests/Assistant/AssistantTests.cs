@@ -183,7 +183,8 @@ namespace Elysian.Tests.Assistant
 
             var categories = new CategoryService(host.Context, Financial.PlaidServiceTests.Mapper);
             var classifier = new TransactionClassifier(host.Context, categories, clock);
-            tools = new AssistantTools(host.Context, new BudgetMonthService(host.Context, classifier, clock), new GoalService(host.Context, clock), new DebtService(host.Context, clock));
+            tools = new AssistantTools(host.Context, new BudgetMonthService(host.Context, classifier, clock), new GoalService(host.Context, clock), new DebtService(host.Context, clock),
+                new TransactionService(host.Context, classifier), clock);
         }
 
         public void Dispose() => host.Dispose();

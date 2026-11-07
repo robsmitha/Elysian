@@ -5,9 +5,10 @@ namespace Elysian.Application.Features.Assistant.Models
 
     /// <summary>
     /// A question from the drawer. <paramref name="Today"/> is the person's own date (time zone); <paramref name="Page"/>
-    /// is where the drawer was opened, e.g. "budget" with "2026-11".
+    /// is where the drawer was opened, e.g. "budget" with "2026-11". <paramref name="CanChange"/> is whether they may
+    /// confirm changes (budget write); without it, proposal cards are view only.
     /// </summary>
-    public record AskAssistantRequest(string Question, List<AssistantTurn>? History, DateOnly? Today, string? Page, string? PageMonth);
+    public record AskAssistantRequest(string Question, List<AssistantTurn>? History, DateOnly? Today, string? Page, string? PageMonth, bool CanChange = true);
 
     public record AssistantHighlight(string Label, string Value);
 
@@ -18,7 +19,8 @@ namespace Elysian.Application.Features.Assistant.Models
 
     /// <summary>
     /// The reply. Status is "answered", "needs_clarification", "no_data", "out_of_scope" or "fallback" (couldn't
-    /// answer reliably). Steps are plain labels for each lookup, for "How I got this".
+    /// answer reliably). Steps are plain labels for each lookup, for "How I got this". Action is a proposed change
+    /// waiting for the person's Confirm (docs/assistant-actions-plan.md), or null.
     /// </summary>
     public record AssistantReply(
         string Status,
@@ -28,7 +30,8 @@ namespace Elysian.Application.Features.Assistant.Models
         List<AssistantLink> Links,
         List<string> FollowUps,
         List<string> Steps,
-        AssistantUsageModel Usage);
+        AssistantUsageModel Usage,
+        AssistantActionModel? Action = null);
 
     /// <summary>Questions left today. ResetsOn is the person's next date.</summary>
     public record AssistantUsageModel(bool Enabled, int DailyLimit, int UsedToday, int RemainingToday, DateOnly ResetsOn);

@@ -13,11 +13,14 @@ namespace Elysian.Application.Features.Assistant
         string ChartToolCallId,
         string ChartKind,
         List<AssistantLink> Links,
-        List<string> FollowUps);
+        List<string> FollowUps,
+        /// <summary>A proposal from this question's propose_* calls, or "" (docs/assistant-actions-plan.md §6)</summary>
+        string ActionId = "");
 
-    public record AnswerCheckResult(AnswerDraft Draft, List<string> UnsupportedNumbers)
+    /// <summary><paramref name="ClaimsDone"/>: the answer says a change was made, but it's only proposed</summary>
+    public record AnswerCheckResult(AnswerDraft Draft, List<string> UnsupportedNumbers, bool ClaimsDone = false)
     {
-        public bool Passed => UnsupportedNumbers.Count == 0;
+        public bool Passed => UnsupportedNumbers.Count == 0 && !ClaimsDone;
     }
 
     /// <summary>
@@ -67,7 +70,7 @@ namespace Elysian.Application.Features.Assistant
                 var kind = Str(root, "chart_kind");
 
                 return new AnswerDraft(status, answer.Length > MaxAnswer ? answer[..MaxAnswer] : answer, highlights,
-                    Str(root, "chart_tool_call_id"), ChartKinds.Contains(kind) ? kind : "none", links, followUps);
+                    Str(root, "chart_tool_call_id"), ChartKinds.Contains(kind) ? kind : "none", links, followUps, Str(root, "action_id"));
             }
             catch (JsonException)
             {
@@ -80,7 +83,7 @@ namespace Elysian.Application.Features.Assistant
         /// are returned as problems, so the caller can ask once more or fall back.
         /// </summary>
         public static AnswerCheckResult Check(AnswerDraft draft, IReadOnlyCollection<decimal> supported, string question,
-            IReadOnlySet<string> allowedLinks, IReadOnlySet<string> chartToolCallIds)
+            IReadOnlySet<string> allowedLinks, IReadOnlySet<string> chartToolCallIds, IReadOnlySet<string>? proposedActionIds = null)
         {
             var known = new HashSet<decimal>(supported.Select(Math.Abs));
             foreach (var n in Numbers(question)) known.Add(n.Value);
@@ -96,14 +99,21 @@ namespace Elysian.Application.Features.Assistant
 
             var links = draft.Links.Where(l => allowedLinks.Contains(l.To) && IsAppRoute(l.To)).ToList();
             var chartOk = draft.ChartKind != "none" && chartToolCallIds.Contains(draft.ChartToolCallId);
+            var proposed = proposedActionIds ?? new HashSet<string>();
             var cleaned = draft with
             {
                 Links = links,
                 ChartToolCallId = chartOk ? draft.ChartToolCallId : "",
                 ChartKind = chartOk ? draft.ChartKind : "none",
+                ActionId = proposed.Contains(draft.ActionId) ? draft.ActionId : "",
             };
-            return new AnswerCheckResult(cleaned, problems);
+            // While anything is only proposed, the answer mustn't say it's done
+            var claimsDone = proposed.Count > 0 && SaysDone(draft.Answer);
+            return new AnswerCheckResult(cleaned, problems, claimsDone);
         }
+
+        /// <summary>"I've moved them", "Done!", "I updated your target": phrasing that says a change was already made</summary>
+        public static bool SaysDone(string text) => DonePhrasing().IsMatch(text ?? "");
 
         /// <summary>Only pages of this app, never another site or a script URL</summary>
         public static bool IsAppRoute(string to) => AppRoute().IsMatch(to);
@@ -172,5 +182,8 @@ namespace Elysian.Application.Features.Assistant
 
         [GeneratedRegex(@"^/(transactions|budget|goals|debt|dashboard)(\?[A-Za-z0-9_=&%.\-]*)?$")]
         private static partial Regex AppRoute();
+
+        [GeneratedRegex(@"\bI(?:['’]ve| have)?\s+(?:now\s+|just\s+|already\s+|gone ahead and\s+)?(?:moved|changed|updated|set|created|made|added|renamed|merged|recategori[sz]ed|hid|hidden|marked|applied|switched|raised|lowered)\b|^\s*(?:done|all set)\b|\b(?:has|have) been (?:moved|changed|updated|set|created|added|renamed|merged|applied|hidden)\b", RegexOptions.IgnoreCase)]
+        private static partial Regex DonePhrasing();
     }
 }
