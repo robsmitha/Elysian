@@ -212,7 +212,7 @@ namespace Elysian.Tests.Assistant
             tools.RunAsync(user, Today, new ModelToolCall("toolu_1", tool, JsonDocument.Parse(input).RootElement), CancellationToken.None);
 
         private AssistantService Service(IAssistantModel? model = null) =>
-            new(host.Context, Options.Create(settings), new AssistantLimiter(host.Context, Options.Create(settings), clock), tools,
+            new(host.Context, new Monitor<AssistantSettings>(settings), new AssistantLimiter(host.Context, new Monitor<AssistantSettings>(settings), clock), tools,
                 model ?? new FakeAssistantModel(), new TransactionClassifier(host.Context, new CategoryService(host.Context, Financial.PlaidServiceTests.Mapper), clock),
                 clock, NullLogger<AssistantService>.Instance);
 
@@ -352,6 +352,18 @@ namespace Elysian.Tests.Assistant
         }
 
         [Fact]
+        public async Task The_setting_is_read_on_every_question_not_once()
+        {
+            var service = Service();
+            settings.Enabled = false;
+            await Assert.ThrowsAsync<NotFoundException>(() => service.AskAsync(Me, Ask("Starbucks total?")));
+
+            settings.Enabled = true;
+            Assert.Equal("answered", (await service.AskAsync(Me, Ask("Starbucks total?"))).Status);
+            Assert.Equal("answered", (await service.AskAsync(Me, Ask("And last month?"))).Status);
+        }
+
+        [Fact]
         public async Task Running_out_of_time_is_a_fallback()
         {
             settings.TotalSeconds = 1;
@@ -394,6 +406,14 @@ namespace Elysian.Tests.Assistant
             Assert.Contains("\"name\":\"spending_trend\"", json);
             Assert.Contains("\"json_schema\"", json);
             Assert.DoesNotContain("temperature", json);
+        }
+
+        /// <summary>Settings the test can change between calls, as app settings can change between requests</summary>
+        private sealed class Monitor<T>(T value) : IOptionsMonitor<T>
+        {
+            public T CurrentValue => value;
+            public T Get(string? name) => value;
+            public IDisposable? OnChange(Action<T, string?> listener) => null;
         }
 
         /// <summary>Answers straight away without tools, and keeps what it was sent</summary>

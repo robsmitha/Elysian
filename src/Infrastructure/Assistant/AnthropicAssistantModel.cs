@@ -17,11 +17,12 @@ namespace Elysian.Infrastructure.Assistant
         public const string FallbackBeta = "server-side-fallback-2026-07-01";
 
         private readonly AnthropicClient client;
-        private readonly AssistantSettings settings;
+        private readonly IOptionsMonitor<AssistantSettings> options;
 
-        public AnthropicAssistantModel(IOptions<AssistantSettings> assistant, IOptions<AnthropicSettings> anthropic)
+        public AnthropicAssistantModel(IOptionsMonitor<AssistantSettings> assistant, IOptions<AnthropicSettings> anthropic)
         {
-            settings = assistant.Value;
+            options = assistant;
+            var settings = assistant.CurrentValue;
             var key = anthropic.Value.ApiKey;
             if (string.IsNullOrWhiteSpace(key)) throw new InvalidOperationException("Anthropic__ApiKey isn't set; set it or use Assistant__Provider=fake.");
             client = new AnthropicClient
@@ -34,6 +35,7 @@ namespace Elysian.Infrastructure.Assistant
 
         public async Task<ModelResponse> CreateAsync(ModelRequest request, CancellationToken cancellationToken)
         {
+            var settings = options.CurrentValue;
             var parameters = Build(request, settings);
 
             BetaMessage message;

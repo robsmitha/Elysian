@@ -12,9 +12,9 @@ namespace Elysian.Infrastructure.Assistant
     /// The assistant's limits (docs/assistant-plan.md §7): per person per minute and per day, per tenant per day, and a
     /// monthly token cap. Taking a question is atomic per person, so two tabs can't both take the last one.
     /// </summary>
-    public class AssistantLimiter(ElysianContext context, IOptions<AssistantSettings> options, TimeProvider clock)
+    public class AssistantLimiter(ElysianContext context, IOptionsMonitor<AssistantSettings> options, TimeProvider clock)
     {
-        private AssistantSettings Settings => options.Value;
+        private AssistantSettings Settings => options.CurrentValue;
 
         /// <summary>Counts toward the daily limits: answered, or still running. Fallbacks and refusals give the question back.</summary>
         private static readonly AssistantOutcome[] Counted = [AssistantOutcome.Started, AssistantOutcome.Answered];

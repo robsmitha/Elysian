@@ -143,10 +143,13 @@ namespace Elysian.Infrastructure
             services.Configure<AssistantSettings>(configuration.GetSection("Assistant"));
             services.Configure<AnthropicSettings>(configuration.GetSection("Anthropic"));
             services.TryAddSingleton(TimeProvider.System);
-            services.AddSingleton<IAssistantModel>(serviceProvider =>
-                serviceProvider.GetRequiredService<IOptions<AssistantSettings>>().Value.Provider == "anthropic"
-                    ? ActivatorUtilities.CreateInstance<AnthropicAssistantModel>(serviceProvider)
-                    : new FakeAssistantModel());
+            // Both kept for the life of the process; which one answers is read from the settings on each request
+            services.AddSingleton<AnthropicAssistantModel>();
+            services.AddSingleton<FakeAssistantModel>();
+            services.AddTransient<IAssistantModel>(serviceProvider =>
+                serviceProvider.GetRequiredService<IOptionsMonitor<AssistantSettings>>().CurrentValue.Provider == "anthropic"
+                    ? serviceProvider.GetRequiredService<AnthropicAssistantModel>()
+                    : serviceProvider.GetRequiredService<FakeAssistantModel>());
             services.AddTransient<AssistantLimiter>();
             services.AddTransient<AssistantTools>();
             services.AddTransient<IAssistantService, AssistantService>();

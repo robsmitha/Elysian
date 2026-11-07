@@ -18,7 +18,7 @@ namespace Elysian.Infrastructure.Assistant
     /// </summary>
     public class AssistantService(
         ElysianContext context,
-        IOptions<AssistantSettings> options,
+        IOptionsMonitor<AssistantSettings> options,
         AssistantLimiter limiter,
         AssistantTools tools,
         IAssistantModel model,
@@ -31,14 +31,20 @@ namespace Elysian.Infrastructure.Assistant
         public const string Busy = "The assistant is busy right now. Try again in a minute.";
         public const string Refused = "I can’t help with that one. I can answer questions about your spending, budget, bills, goals and debt.";
 
-        private AssistantSettings Settings => options.Value;
+        /// <summary>Read on every request, so an instance never keeps settings it loaded before the app settings applied</summary>
+        private AssistantSettings Settings => options.CurrentValue;
 
         public async Task<AssistantUsageModel> GetUsageAsync(string userId, DateOnly? today, CancellationToken cancellationToken = default) =>
             await limiter.UsageAsync(userId, Today(today), cancellationToken);
 
         public async Task<AssistantReply> AskAsync(string userId, AskAssistantRequest request, CancellationToken cancellationToken = default)
         {
-            if (!Settings.Enabled) throw new NotFoundException("The assistant is switched off.");
+            if (!Settings.Enabled)
+            {
+                logger.LogWarning("Assistant refused: switched off (Assistant__Enabled) on instance {Instance}",
+                    Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID") ?? Environment.MachineName);
+                throw new NotFoundException("The assistant is switched off.");
+            }
 
             var today = Today(request.Today);
             var usageId = await limiter.TakeAsync(userId, today, cancellationToken);
