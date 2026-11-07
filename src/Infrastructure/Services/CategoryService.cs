@@ -1,4 +1,6 @@
 ﻿using AutoMapper;
+using Elysian.Application.Exceptions;
+using Elysian.Application.Features.Financial.Categories;
 using Elysian.Application.Features.Financial.Models;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
@@ -7,91 +9,149 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Elysian.Infrastructure.Services
 {
+    /// <summary>Each person's own categories. Every method only sees the given person's.</summary>
     public class CategoryService(ElysianContext context, IMapper mapper) : ICategoryService
     {
-        public async Task<List<FinancialCategoryModel>> GetCategoriesAsync()
+        private IQueryable<FinancialCategory> Mine(string userId) => context.FinancialCategories.Where(c => c.UserId == userId);
+
+        public async Task<List<FinancialCategoryModel>> GetCategoriesAsync(string userId, bool includeArchived = false)
         {
-            var categories = await context.FinancialCategories.ToListAsync();
+            await EnsureDefaultsAsync(userId);
+            var categories = await Mine(userId)
+                .Where(c => includeArchived || !c.IsArchived)
+                .OrderBy(c => c.Group).ThenBy(c => c.SortOrder).ThenBy(c => c.Name)
+                .ToListAsync();
             return mapper.Map<List<FinancialCategoryModel>>(categories);
         }
 
-        public async Task<FinancialCategoryModel> GetCategoryAsync(int categoryId)
+        public async Task<FinancialCategoryModel?> GetCategoryAsync(string userId, int categoryId)
         {
-            var category = await context.FinancialCategories.FindAsync(categoryId);
-            return mapper.Map<FinancialCategoryModel>(category);
+            var category = await Mine(userId).FirstOrDefaultAsync(c => c.FinancialCategoryId == categoryId);
+            return category == null ? null : mapper.Map<FinancialCategoryModel>(category);
         }
 
-        public async Task<FinancialCategoryModel> GetCategoryByNameAsync(string categoryName)
+        public async Task<FinancialCategoryModel?> GetCategoryByNameAsync(string userId, string categoryName)
         {
-            var category = await context.FinancialCategories.FirstOrDefaultAsync(c => c.Name == categoryName);
-            return mapper.Map<FinancialCategoryModel>(category);
+            var category = await Mine(userId).FirstOrDefaultAsync(c => c.Name == categoryName);
+            return category == null ? null : mapper.Map<FinancialCategoryModel>(category);
         }
 
-        public async Task<FinancialCategoryModel> AddCategoryAsync(FinancialCategoryModel model)
+        public async Task<FinancialCategoryModel> AddCategoryAsync(string userId, FinancialCategoryModel model)
         {
             var category = new FinancialCategory
             {
-                Name = model.Name
+                UserId = userId,
+                Name = model.Name.Trim(),
+                Icon = model.Icon,
+                Group = model.Group,
+                SortOrder = 1000
             };
             await context.AddAsync(category);
             await context.SaveChangesAsync();
             return mapper.Map<FinancialCategoryModel>(category);
         }
 
-        public async Task<FinancialCategoryModel> UpdateCategoryAsync(FinancialCategoryModel model)
+        public async Task<FinancialCategoryModel> UpdateCategoryAsync(string userId, FinancialCategoryModel model)
         {
-            var category = await context.FinancialCategories.FindAsync(model.FinancialCategoryId);
-            category.Name = model.Name;
+            var category = await Mine(userId).FirstOrDefaultAsync(c => c.FinancialCategoryId == model.FinancialCategoryId)
+                ?? throw new NotFoundException("Category", model.FinancialCategoryId);
+            category.Name = model.Name.Trim();
+            category.Icon = model.Icon ?? category.Icon;
+            category.Group = model.Group;
             await context.SaveChangesAsync();
             return mapper.Map<FinancialCategoryModel>(category);
         }
 
-        public async Task<List<TransactionCategoryModel>> GetTransactionCategoriesAsync(string userid, int budgetId)
+        public async Task ArchiveCategoryAsync(string userId, int categoryId, int? mergeIntoCategoryId)
         {
-            var transactionCategories = await context.TransactionCategories
-                .Include(c => c.FinancialCategory)
-                .Where(c => c.BudgetId == budgetId)
-                .ToListAsync();
-            return mapper.Map<List<TransactionCategoryModel>>(transactionCategories);
+            var category = await Mine(userId).FirstOrDefaultAsync(c => c.FinancialCategoryId == categoryId)
+                ?? throw new NotFoundException("Category", categoryId);
+
+            if (mergeIntoCategoryId is int targetId && targetId != categoryId)
+            {
+                if (!await Mine(userId).AnyAsync(c => c.FinancialCategoryId == targetId && !c.IsArchived))
+                {
+                    throw new NotFoundException("Category", targetId);
+                }
+
+                // Transactions and splits keep who set them; only the category changes
+                foreach (var t in await context.BankTransactions.Where(t => t.CategoryId == categoryId).ToListAsync())
+                {
+                    t.CategoryId = targetId;
+                }
+                foreach (var s in await context.TransactionSplits.Where(s => s.CategoryId == categoryId).ToListAsync())
+                {
+                    s.CategoryId = targetId;
+                }
+                foreach (var r in await context.CategoryRules.Where(r => r.UserId == userId && r.SetCategoryId == categoryId).ToListAsync())
+                {
+                    r.SetCategoryId = targetId;
+                }
+
+                // Budget lines: add the estimate to the target's line in the same budget, or move the line
+                var lines = await context.BudgetCategories.Where(b => b.FinancialCategoryId == categoryId).ToListAsync();
+                foreach (var line in lines)
+                {
+                    var existing = await context.BudgetCategories.FirstOrDefaultAsync(b => b.BudgetId == line.BudgetId && b.FinancialCategoryId == targetId);
+                    if (existing != null)
+                    {
+                        existing.Estimate += line.Estimate;
+                        context.BudgetCategories.Remove(line);
+                    }
+                    else
+                    {
+                        line.FinancialCategoryId = targetId;
+                    }
+                }
+            }
+
+            category.IsArchived = true;
+            await context.SaveChangesAsync();
         }
 
-        public async Task<TransactionCategoryModel> SetTransactionCategoryAsync(string userid, string transactionId, int categoryId, int budgetId)
+        public async Task EnsureDefaultsAsync(string userId)
         {
-            TransactionCategory transactionCategory = null;
-            try
+            var mine = await Mine(userId).ToListAsync();
+            // Done once: after that the person decides (an archived default stays archived)
+            if (mine.Any(c => c.SystemKey != null))
             {
-                // get existing transaction category if any
-                transactionCategory = await context.TransactionCategories
-                    .SingleOrDefaultAsync(t => t.BudgetId == budgetId && t.TransactionId == transactionId);
+                return;
             }
-            catch (InvalidOperationException)
+
+            // Existing categories whose names match a default take its key, so Plaid's categories land in them
+            var taken = new HashSet<string>();
+            foreach (var category in mine.OrderBy(c => c.FinancialCategoryId))
             {
-                // multiple records, delete all and set new transaction category
-                var duplicates = await context.TransactionCategories
-                    .Where(t => t.BudgetId == budgetId && t.TransactionId == transactionId)
-                    .ToListAsync();
-                context.RemoveRange(duplicates);
-                await context.SaveChangesAsync(); 
-            }
-            finally
-            {
-                if (transactionCategory == null)
+                var match = CategoryCatalog.ForName(category.Name);
+                if (match != null && taken.Add(match.Key))
                 {
-                    transactionCategory = new TransactionCategory
-                    {
-                        TransactionId = transactionId,
-                        FinancialCategoryId = categoryId,
-                        BudgetId = budgetId
-                    };
-                    await context.AddAsync(transactionCategory);
+                    category.SystemKey = match.Key;
+                    category.Icon ??= match.Icon;
+                    category.Group = match.Group;
                 }
-                else
-                {
-                    transactionCategory.FinancialCategoryId = categoryId;
-                }
-                await context.SaveChangesAsync();
             }
-            return mapper.Map<TransactionCategoryModel>(transactionCategory);
+
+            var order = 0;
+            foreach (var d in CategoryCatalog.Defaults)
+            {
+                order++;
+                var keyed = mine.FirstOrDefault(c => c.SystemKey == d.Key);
+                if (keyed != null)
+                {
+                    keyed.SortOrder = order;
+                    continue;
+                }
+                context.FinancialCategories.Add(new FinancialCategory
+                {
+                    UserId = userId,
+                    Name = d.Name,
+                    SystemKey = d.Key,
+                    Icon = d.Icon,
+                    Group = d.Group,
+                    SortOrder = order
+                });
+            }
+            await context.SaveChangesAsync();
         }
     }
 }

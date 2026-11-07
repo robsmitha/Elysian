@@ -26,6 +26,7 @@ namespace Elysian.Infrastructure.Context
         public DbSet<BudgetAccessItem> BudgetAccessItems { get; set; }
         public DbSet<BudgetCategory> BudgetCategories { get; set; }
         public DbSet<BudgetExcludedTransaction> BudgetExcludedTransactions { get; set; }
+        public DbSet<CategoryRule> CategoryRules { get; set; }
         public DbSet<FinancialAccount> FinancialAccounts { get; set; }
         public DbSet<FinancialCategory> FinancialCategories { get; set; }
         public DbSet<IncomeSource> IncomeSources { get; set; }
@@ -49,6 +50,7 @@ namespace Elysian.Infrastructure.Context
         public DbSet<Story> Stories { get; set; }
         public DbSet<SyncRun> SyncRuns { get; set; }
         public DbSet<TransactionCategory> TransactionCategories { get; set; }
+        public DbSet<TransactionSplit> TransactionSplits { get; set; }
         public DbSet<UnitType> UnitTypes { get; set; }
         public DbSet<User> Users { get; set; }
         public DbSet<UserAuditLog> UserAuditLogs { get; set; }

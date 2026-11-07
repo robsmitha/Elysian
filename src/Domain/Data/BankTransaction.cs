@@ -1,3 +1,4 @@
+using Elysian.Domain.Constants;
 using Finbuckle.MultiTenant;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -35,7 +36,21 @@ namespace Elysian.Domain.Data
         /// <summary>Plaid removed it (a pending charge that dropped off or posted under a new id)</summary>
         public DateTimeOffset? RemovedAt { get; set; }
 
+        /// <summary>The merchant (or description) normalized for rules and refunds: "TRADER JOE S #552" → "trader joe s"</summary>
+        public string MerchantKey { get; set; } = "";
+
+        // What budgets do with it (docs/budget-plan.md §4.4). Sources say who decided; a person's choice is never overwritten.
+        public int? CategoryId { get; set; }
+        public ClassificationSource CategorySource { get; set; }
+        public Treatment Treatment { get; set; }
+        public ClassificationSource TreatmentSource { get; set; }
+        public string? Notes { get; set; }
+        /// <summary>When the classifier last looked at it; null means "classify me" (new or changed by Plaid)</summary>
+        public DateTimeOffset? ClassifiedAt { get; set; }
+
         public FinancialAccount FinancialAccount { get; set; }
+        public FinancialCategory? Category { get; set; }
+        public ICollection<TransactionSplit> Splits { get; set; } = [];
 
         public class Configuration : IEntityTypeConfiguration<BankTransaction>
         {
@@ -54,6 +69,16 @@ namespace Elysian.Domain.Data
                 builder.Property(t => t.PaymentChannel).HasMaxLength(20);
                 builder.Property(t => t.TransactionType).HasMaxLength(20);
                 builder.Property(t => t.IsoCurrencyCode).HasMaxLength(10);
+                builder.Property(t => t.MerchantKey).IsRequired().HasMaxLength(200);
+                builder.Property(t => t.CategorySource).HasConversion<string>().HasMaxLength(8);
+                builder.Property(t => t.Treatment).HasConversion<string>().HasMaxLength(16);
+                builder.Property(t => t.TreatmentSource).HasConversion<string>().HasMaxLength(8);
+                builder.Property(t => t.Notes).HasMaxLength(1000);
+
+                builder.HasOne(t => t.Category)
+                    .WithMany()
+                    .HasForeignKey(t => t.CategoryId)
+                    .OnDelete(DeleteBehavior.SetNull);
 
                 builder.HasOne(t => t.FinancialAccount)
                     .WithMany(a => a.Transactions)

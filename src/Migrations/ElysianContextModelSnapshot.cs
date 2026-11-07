@@ -39,6 +39,17 @@ namespace Elysian.Migrations
                     b.Property<DateOnly>("BudgetDate")
                         .HasColumnType("date");
 
+                    b.Property<int?>("CategoryId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CategorySource")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<DateTimeOffset?>("ClassifiedAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
 
@@ -53,6 +64,11 @@ namespace Elysian.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("MerchantKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("MerchantName")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
@@ -61,6 +77,10 @@ namespace Elysian.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("PaymentChannel")
                         .HasMaxLength(20)
@@ -105,7 +125,19 @@ namespace Elysian.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("Treatment")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("TreatmentSource")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
                     b.HasKey("BankTransactionId");
+
+                    b.HasIndex("CategoryId");
 
                     b.HasIndex("PlaidTransactionId");
 
@@ -391,6 +423,82 @@ namespace Elysian.Migrations
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
+            modelBuilder.Entity("Elysian.Domain.Data.CategoryRule", b =>
+                {
+                    b.Property<int>("CategoryRuleId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CategoryRuleId"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Field")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Match")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTimeOffset>("ModifiedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ModifiedByUserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SetCategoryId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SetTreatment")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("CategoryRuleId");
+
+                    b.HasIndex("SetCategoryId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("CategoryRule", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.FinancialAccount", b =>
                 {
                     b.Property<int>("FinancialAccountId")
@@ -498,6 +606,18 @@ namespace Elysian.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("Group")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Icon")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -510,11 +630,33 @@ namespace Elysian.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SystemKey")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.HasKey("FinancialCategoryId");
 
+                    b.HasIndex("UserId", "SystemKey");
+
                     b.ToTable("FinancialCategory", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
             modelBuilder.Entity("Elysian.Domain.Data.IncomePayment", b =>
@@ -1829,6 +1971,43 @@ namespace Elysian.Migrations
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
+            modelBuilder.Entity("Elysian.Domain.Data.TransactionSplit", b =>
+                {
+                    b.Property<long>("TransactionSplitId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("TransactionSplitId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long>("BankTransactionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("CategoryId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("TransactionSplitId");
+
+                    b.HasIndex("BankTransactionId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.ToTable("TransactionSplit", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.UnitType", b =>
                 {
                     b.Property<int>("UnitTypeId")
@@ -1987,11 +2166,18 @@ namespace Elysian.Migrations
 
             modelBuilder.Entity("Elysian.Domain.Data.BankTransaction", b =>
                 {
+                    b.HasOne("Elysian.Domain.Data.FinancialCategory", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Elysian.Domain.Data.FinancialAccount", "FinancialAccount")
                         .WithMany("Transactions")
                         .HasForeignKey("FinancialAccountId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Category");
 
                     b.Navigation("FinancialAccount");
                 });
@@ -2043,6 +2229,16 @@ namespace Elysian.Migrations
                         .IsRequired();
 
                     b.Navigation("Budget");
+                });
+
+            modelBuilder.Entity("Elysian.Domain.Data.CategoryRule", b =>
+                {
+                    b.HasOne("Elysian.Domain.Data.FinancialCategory", "SetCategory")
+                        .WithMany()
+                        .HasForeignKey("SetCategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("SetCategory");
                 });
 
             modelBuilder.Entity("Elysian.Domain.Data.FinancialAccount", b =>
@@ -2269,6 +2465,24 @@ namespace Elysian.Migrations
                     b.Navigation("FinancialCategory");
                 });
 
+            modelBuilder.Entity("Elysian.Domain.Data.TransactionSplit", b =>
+                {
+                    b.HasOne("Elysian.Domain.Data.BankTransaction", "BankTransaction")
+                        .WithMany("Splits")
+                        .HasForeignKey("BankTransactionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Elysian.Domain.Data.FinancialCategory", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("BankTransaction");
+
+                    b.Navigation("Category");
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.User", b =>
                 {
                     b.OwnsOne("Elysian.Domain.Data.AccessControl", "AccessControl", b1 =>
@@ -2296,6 +2510,11 @@ namespace Elysian.Migrations
 
                     b.Navigation("AccessControl")
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Elysian.Domain.Data.BankTransaction", b =>
+                {
+                    b.Navigation("Splits");
                 });
 
             modelBuilder.Entity("Elysian.Domain.Data.FinancialAccount", b =>

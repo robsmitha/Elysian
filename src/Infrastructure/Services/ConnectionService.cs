@@ -110,25 +110,14 @@ namespace Elysian.Infrastructure.Services
             var to = DateOnly.FromDateTime(end);
             var rows = await context.BankTransactions
                 .Include(t => t.FinancialAccount)
+                .Include(t => t.Category)
+                .Include(t => t.Splits).ThenInclude(sp => sp.Category)
                 .Where(t => institutionAccessItemIds.Contains(t.FinancialAccount.InstitutionAccessItemId)
                     && t.RemovedAt == null && t.BudgetDate >= from && t.BudgetDate <= to)
                 .OrderByDescending(t => t.BudgetDate).ThenByDescending(t => t.BankTransactionId)
                 .ToListAsync();
 
-            return rows.Select(t => new TransactionModel
-            {
-                transaction_id = t.PlaidTransactionId,
-                account_id = t.FinancialAccount.PlaidAccountId,
-                date = t.Date.ToString("yyyy-MM-dd"),
-                authorized_date = t.AuthorizedDate?.ToString("yyyy-MM-dd"),
-                name = t.Name,
-                merchant_name = t.MerchantName,
-                amount = (double)t.Amount,
-                pending = t.Pending,
-                payment_channel = t.PaymentChannel,
-                transaction_type = t.TransactionType,
-                Account = ToAccountModel(t.FinancialAccount)
-            }).ToList();
+            return rows.Select(BankTransactionMapping.ToModel).ToList();
         }
 
         public async Task<int> ExchangePublicTokenAsync(string userId, ExchangePublicTokenRequest request, CancellationToken cancellationToken = default)

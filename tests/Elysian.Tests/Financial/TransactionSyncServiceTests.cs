@@ -24,7 +24,8 @@ namespace Elysian.Tests.Financial
             var protector = Protector(Settings());
             item = SeedBank(host, protector).Item;
             plaid.SetupGet(p => p.WebhookUrl).Returns("https://robsmitha.com/api/PlaidWebhook?tenant=test");
-            service = new TransactionSyncService(host.Context, plaid.Object, TokenService(host, protector), clock, NullLogger<TransactionSyncService>.Instance);
+            var classifier = new TransactionClassifier(host.Context, new CategoryService(host.Context, PlaidServiceTests.Mapper), clock);
+            service = new TransactionSyncService(host.Context, plaid.Object, TokenService(host, protector), classifier, clock, NullLogger<TransactionSyncService>.Instance);
         }
 
         private void Returns(string? cursor, TransactionsSyncResponse page) =>
@@ -76,7 +77,7 @@ namespace Elysian.Tests.Financial
         public async Task A_posted_charge_keeps_the_category_and_exclusion_set_while_it_was_pending()
         {
             var budget = new Budget { Name = "November", StartDate = new DateTime(2026, 11, 1), EndDate = new DateTime(2026, 11, 30), UserId = Me };
-            var groceries = new FinancialCategory { Name = "Groceries" };
+            var groceries = new FinancialCategory { Name = "Groceries", UserId = Me };
             host.Context.AddRange(budget, groceries);
             await host.Context.SaveChangesAsync();
 

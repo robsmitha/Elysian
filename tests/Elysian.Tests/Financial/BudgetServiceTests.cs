@@ -28,8 +28,8 @@ namespace Elysian.Tests.Financial
             var them = TestHost.User(2, Someone, "them@example.com");
             ctx.Users.AddRange(me, them);
 
-            var g = new FinancialCategory { Name = "Groceries" };
-            var d = new FinancialCategory { Name = "Dining" };
+            var g = new FinancialCategory { Name = "Groceries", UserId = Me };
+            var d = new FinancialCategory { Name = "Dining", UserId = Me };
             ctx.FinancialCategories.AddRange(g, d);
 
             var mine = new InstitutionAccessItem { AccessToken = "access-1", ItemId = "item-1", InstitutionId = "ins_1" };

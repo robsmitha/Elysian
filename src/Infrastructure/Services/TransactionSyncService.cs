@@ -1,6 +1,7 @@
 using System.Globalization;
 using Elysian.Application.Exceptions;
 using Elysian.Application.Features.Financial;
+using Elysian.Application.Features.Financial.Categories;
 using Elysian.Application.Features.Financial.Sync;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Constants;
@@ -17,7 +18,7 @@ namespace Elysian.Infrastructure.Services
     /// matched on Plaid's transaction id, and the cursor only moves after everything from a pass is saved.
     /// </summary>
     public class TransactionSyncService(ElysianContext context, IFinancialService plaid, IAccessTokenService accessTokenService,
-        TimeProvider timeProvider, ILogger<TransactionSyncService> logger) : ITransactionSyncService
+        ITransactionClassifier classifier, TimeProvider timeProvider, ILogger<TransactionSyncService> logger) : ITransactionSyncService
     {
         // Plaid asks for the whole pass to restart from the first cursor when data changes mid-pagination
         private const int MaxPassAttempts = 3;
@@ -77,6 +78,8 @@ namespace Elysian.Infrastructure.Services
 
                 logger.LogInformation("Synced item {Item} ({Trigger}): +{Added} ~{Modified} -{Removed}",
                     item.InstitutionAccessItemId, trigger, counts.Added, counts.Modified, counts.Removed);
+
+                await ClassifyForOwnersAsync(item.InstitutionAccessItemId, cancellationToken);
                 return new SyncOutcome(true, counts.Added, counts.Modified, counts.Removed);
             }
             catch (FinancialServiceException fex)
@@ -168,7 +171,9 @@ namespace Elysian.Infrastructure.Services
             // A transaction can appear more than once in a pass (added, then modified); the last version wins
             var upserts = pass.Upserts.GroupBy(t => t.transaction_id).Select(g => g.Last()).ToList();
             var removedIds = pass.Removed.Where(id => !string.IsNullOrEmpty(id)).Distinct().ToList();
-            var existing = await LoadExistingAsync(upserts.Select(t => t.transaction_id).Concat(removedIds), cancellationToken);
+            // Pending rows that just posted are loaded too, so the person's choices on them can move to the posted row
+            var pendingIds = upserts.Where(t => !string.IsNullOrEmpty(t.pending_transaction_id)).Select(t => t.pending_transaction_id!);
+            var existing = await LoadExistingAsync(upserts.Select(t => t.transaction_id).Concat(removedIds).Concat(pendingIds), cancellationToken);
 
             int added = 0, modified = 0, removed = 0;
             foreach (var t in upserts)
@@ -191,6 +196,11 @@ namespace Elysian.Infrastructure.Services
                     added++;
                 }
                 Fill(row, t, account, now);
+
+                if (!t.pending && !string.IsNullOrEmpty(t.pending_transaction_id) && existing.TryGetValue(t.pending_transaction_id, out var pendingRow))
+                {
+                    CarryOverChoices(pendingRow, row);
+                }
             }
 
             foreach (var id in removedIds)
@@ -235,6 +245,44 @@ namespace Elysian.Infrastructure.Services
                 account.BalanceAsOf = now;
             }
             return byPlaidId;
+        }
+
+        /// <summary>A person's own choices on a pending charge move to its posted version (amounts can change, e.g. a tip).</summary>
+        private static void CarryOverChoices(BankTransaction pending, BankTransaction posted)
+        {
+            if (pending.CategorySource == ClassificationSource.User && posted.CategorySource != ClassificationSource.User)
+            {
+                posted.CategoryId = pending.CategoryId;
+                posted.CategorySource = ClassificationSource.User;
+            }
+            if (pending.TreatmentSource == ClassificationSource.User && posted.TreatmentSource != ClassificationSource.User)
+            {
+                posted.Treatment = pending.Treatment;
+                posted.TreatmentSource = ClassificationSource.User;
+            }
+            posted.Notes ??= pending.Notes;
+        }
+
+        // Classifies the new and changed rows for each person who linked this bank
+        private async Task ClassifyForOwnersAsync(int institutionAccessItemId, CancellationToken cancellationToken)
+        {
+            var owners = await context.InstitutionAccessItemUsers
+                .Where(u => u.InstitutionAccessItemId == institutionAccessItemId)
+                .Select(u => u.User.ExternalUserId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            foreach (var owner in owners)
+            {
+                try
+                {
+                    await classifier.ClassifyAsync(owner, cancellationToken: cancellationToken);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // The data is saved; pages classify anything left over when they load
+                    logger.LogError(ex, "Classifying after the sync of item {Item} failed", institutionAccessItemId);
+                }
+            }
         }
 
         private async Task<Dictionary<string, BankTransaction>> LoadExistingAsync(IEnumerable<string> ids, CancellationToken cancellationToken)
@@ -324,6 +372,9 @@ namespace Elysian.Infrastructure.Services
             row.SyncedAt = now;
             // Back again after a removal (rare): it counts again
             row.RemovedAt = null;
+            row.MerchantKey = CategoryCatalog.MerchantKey(t.merchant_name ?? t.name);
+            // New or changed by Plaid: the classifier looks at it again (a person's own choices are kept)
+            row.ClassifiedAt = null;
         }
 
         private async Task EnsureWebhookAsync(InstitutionAccessItem item, string accessToken)

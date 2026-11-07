@@ -126,6 +126,8 @@ namespace Elysian.Infrastructure
             services.AddSingleton<IPlaidSyncQueue, AzurePlaidSyncQueue>();
             services.AddTransient<ITransactionSyncService, TransactionSyncService>();
             services.AddTransient<IConnectionService, ConnectionService>();
+            services.AddTransient<ITransactionClassifier, TransactionClassifier>();
+            services.AddTransient<ITransactionService, TransactionService>();
             services.AddTransient<PlaidWebhookVerifier>();
             services.AddTransient<IPlaidWebhookService, PlaidWebhookService>();
             return services;

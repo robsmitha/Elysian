@@ -18,21 +18,21 @@ namespace Elysian.Application.Features.Financial.Queries
     {
         public BudgetModel Budget { get; set; } = budget;
         public bool AccessExpired { get; set; } = expired;
-        public decimal TransactionsTotal { get; set; } = (decimal)allTransactions
-                .Where(t => !excludedTransactions.Any(e => e.TransactionId.Equals(t.transaction_id, StringComparison.OrdinalIgnoreCase)))
-                .Sum(c => c.amount);
+        // Counted spending only: card payments, transfers, income and hidden transactions are left out
+        public decimal TransactionsTotal { get; set; } = (decimal)allTransactions.Where(t => t.IsCounted).Sum(c => c.amount);
         public decimal EstimateTotal { get; set; } = budgetCategories.Sum(c => c.Estimate);
         public int TotalPercent => EstimateTotal > 0 ? (int)Math.Round((TransactionsTotal / EstimateTotal) * 100) : 0;
     }
 
     // Totals come from stored transactions, so the list no longer calls Plaid once per budget per bank
     public class GetBudgetsQueryHandler(IBudgetService budgetService, IClaimsPrincipalAccessor claimsPrincipalAccessor,
-        IConnectionService connectionService) : IRequestHandler<GetBudgetsQuery, List<BudgetListItem>>
+        IConnectionService connectionService, ITransactionClassifier classifier) : IRequestHandler<GetBudgetsQuery, List<BudgetListItem>>
     {
         public async Task<List<BudgetListItem>> Handle(GetBudgetsQuery request, CancellationToken cancellationToken)
         {
             var budgetList = new List<BudgetListItem>();
 
+            await classifier.ClassifyAsync(claimsPrincipalAccessor.UserId!, cancellationToken: cancellationToken);
             var budgets = await budgetService.GetBudgetsAsync(claimsPrincipalAccessor.UserId);
             foreach (var budget in budgets)
             {

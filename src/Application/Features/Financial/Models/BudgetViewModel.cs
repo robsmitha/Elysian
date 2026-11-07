@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Elysian.Application.Features.Financial.Models
+﻿namespace Elysian.Application.Features.Financial.Models
 {
     public class TransactionCategoryData
     {
@@ -17,8 +11,16 @@ namespace Elysian.Application.Features.Financial.Models
         public int TotalPercent => Estimate > 0 ? (int)Math.Round((Sum / Estimate) * 100) : 0;
     }
 
+    /// <summary>
+    /// The older budget page. Since Phase 2 it reads each transaction's own category and treatment: only spending and
+    /// refunds on accounts that count as spending are counted; card payments, transfers, income and hidden transactions
+    /// are listed as exemptions. A split transaction counts toward each of its categories.
+    /// </summary>
     public class BudgetViewModel
     {
+        public const int UncategorizedId = -1;
+        public const int SplitId = -2;
+
         public string BudgetName { get; set; }
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
@@ -30,19 +32,17 @@ namespace Elysian.Application.Features.Financial.Models
         public List<ExpiredAccessItem> ExpiredAccessItems { get; set; }
 
         public bool HasExpiredAccessItems => ExpiredAccessItems?.Any() == true;
-        public string ExpiredMessage => ExpiredAccessItems?.FirstOrDefault()?.Message;
+        public string? ExpiredMessage => ExpiredAccessItems?.FirstOrDefault()?.Message;
         public decimal TransactionsTotal => (decimal)(Transactions?.Sum(t => t.amount) ?? 0);
-        public decimal EstimateTotal => BudgetCategoryData.Where(c => c.FinancialCategoryId != -1)?.Sum(c => c.Estimate) ?? 0;
+        public decimal EstimateTotal => BudgetCategoryData.Where(c => c.FinancialCategoryId != UncategorizedId).Sum(c => c.Estimate);
 
         public int TotalPercent => EstimateTotal > 0 ? (int)Math.Round((TransactionsTotal / EstimateTotal) * 100) : 0;
 
         public BudgetViewModel(string name, DateTime startDate, DateTime endDate,
             List<BudgetCategoryModel> budgetCategories,
-            List<TransactionCategoryModel> transactionCategories,
             List<TransactionModel> allTransactions,
             List<InstitutionAccessItemModel> budgetAccessItems,
-            List<ExpiredAccessItem> expiredAccessItems,
-            List<BudgetExcludedTransactionModel> budgetExcludedTransactions)
+            List<ExpiredAccessItem> expiredAccessItems)
         {
             BudgetName = name;
             StartDate = startDate;
@@ -50,61 +50,64 @@ namespace Elysian.Application.Features.Financial.Models
             BudgetAccessItems = budgetAccessItems;
             ExpiredAccessItems = expiredAccessItems;
 
-            var excludedTransactionIds = budgetExcludedTransactions.Select(e => e.TransactionId).ToHashSet(); 
-            
-            Transactions = (from t in allTransactions
-                            join c in transactionCategories on t.transaction_id equals c.TransactionId into tmpC
-                            from c in tmpC.DefaultIfEmpty(new TransactionCategoryModel
-                            {
-                                FinancialCategoryId = -1,
-                                FinancialCategoryName = "Uncategorized"
-                            })
-                            where !excludedTransactionIds.Contains(t.transaction_id, StringComparer.OrdinalIgnoreCase)
-                            select TransactionWithCategory(t, c)).ToList();
+            Transactions = allTransactions.Where(t => t.IsCounted).ToList();
+            ExcludedTransactions = allTransactions.Where(t => !t.IsCounted).ToList();
 
-            ExcludedTransactions = allTransactions.Where(t => excludedTransactionIds.Contains(t.transaction_id)).ToList();
-
-            budgetCategories.Insert(0, new BudgetCategoryModel
+            // The category column: the category, "Split", or "Uncategorized"
+            foreach (var t in Transactions)
             {
-                FinancialCategoryId = -1,
-                FinancialCategoryName = "Uncategorized",
-                Estimate = (decimal)Transactions.Where(t => t.Category.FinancialCategoryId == -1).Sum(t => t.amount)
-            });
+                if (t.Splits.Count > 0)
+                {
+                    t.Category = new FinancialCategoryModel { FinancialCategoryId = SplitId, Name = $"Split · {t.Splits.Count} categories" };
+                }
+                else
+                {
+                    t.Category ??= new FinancialCategoryModel { FinancialCategoryId = UncategorizedId, Name = "Uncategorized" };
+                }
+            }
 
-            BudgetCategories = budgetCategories.Select(c => new FinancialCategoryModel
+            // What each category got, with splits spread across their categories
+            var lines = Transactions.SelectMany(t => t.Splits.Count > 0
+                    ? t.Splits.Select(s => (Id: s.CategoryId ?? UncategorizedId, Name: s.CategoryName ?? "Uncategorized", s.Amount))
+                    : [(Id: t.Category.FinancialCategoryId, Name: t.Category.Name, Amount: (decimal)t.amount)])
+                .ToList();
+
+            var rows = new List<BudgetCategoryModel>
+            {
+                new()
+                {
+                    FinancialCategoryId = UncategorizedId,
+                    FinancialCategoryName = "Uncategorized",
+                    Estimate = lines.Where(l => l.Id == UncategorizedId).Sum(l => l.Amount)
+                }
+            };
+            rows.AddRange(budgetCategories);
+            // Spending in a category the budget doesn't list still shows, with no estimate
+            rows.AddRange(lines
+                .Where(l => l.Id != UncategorizedId && rows.All(r => r.FinancialCategoryId != l.Id))
+                .GroupBy(l => l.Id)
+                .Select(g => new BudgetCategoryModel { FinancialCategoryId = g.Key, FinancialCategoryName = g.First().Name, Estimate = 0 }));
+
+            BudgetCategories = rows.Select(c => new FinancialCategoryModel
             {
                 FinancialCategoryId = c.FinancialCategoryId,
                 Name = c.FinancialCategoryName
             }).ToList();
 
-            BudgetCategoryData = (from c in budgetCategories
-                                  join t in Transactions on c.FinancialCategoryId equals t.Category.FinancialCategoryId into tmpT
-                                  from t in tmpT.DefaultIfEmpty(new TransactionModel
-                                  {
-                                      amount = 0,
-                                      transaction_id = "-1"
-                                  })
-                                  group new { t.amount, t.transaction_id } by new { c.FinancialCategoryId, c.FinancialCategoryName, c.Estimate } into g
-                                  select new TransactionCategoryData
-                                  {
-                                      FinancialCategoryId = g.Key.FinancialCategoryId,
-                                      Estimate = g.Key.Estimate,
-                                      Category = g.Key.FinancialCategoryName,
-                                      Sum = (decimal)g.Where(t => t.transaction_id != "-1").Sum(t => t.amount),
-                                      Count = g.Where(t => t.transaction_id != "-1").Count()
-                                  }).ToList();
+            BudgetCategoryData = rows.Select(c =>
+            {
+                var mine = lines.Where(l => l.Id == c.FinancialCategoryId).ToList();
+                return new TransactionCategoryData
+                {
+                    FinancialCategoryId = c.FinancialCategoryId,
+                    Category = c.FinancialCategoryName,
+                    Estimate = c.Estimate,
+                    Sum = mine.Sum(l => l.Amount),
+                    Count = mine.Count
+                };
+            }).ToList();
         }
 
         public string DateRange => $"{StartDate:MMMM} {StartDate:MM/dd/yyyy} - {EndDate:MM/dd/yyyy}";
-
-        static TransactionModel TransactionWithCategory(TransactionModel t, TransactionCategoryModel c)
-        {
-            t.Category = new FinancialCategoryModel
-            {
-                FinancialCategoryId = c.FinancialCategoryId,
-                Name = c.FinancialCategoryName
-            };
-            return t;
-        }
     }
 }

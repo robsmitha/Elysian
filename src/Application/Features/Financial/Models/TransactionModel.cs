@@ -1,9 +1,19 @@
-﻿using AutoMapper;
+﻿using System.Text.Json.Serialization;
+using AutoMapper;
+using Elysian.Domain.Constants;
 using Elysian.Domain.Data;
 using Elysian.Domain.Responses.Plaid;
 
 namespace Elysian.Application.Features.Financial.Models
 {
+    public class TransactionSplitModel
+    {
+        public int? CategoryId { get; set; }
+        public string? CategoryName { get; set; }
+        public decimal Amount { get; set; }
+        public string? Notes { get; set; }
+    }
+
     public class TransactionModel
     {
         public string date { get; set; }
@@ -20,6 +30,25 @@ namespace Elysian.Application.Features.Financial.Models
         public bool HasTransactionCategory => Category != null;
         public FinancialCategoryModel Category { get; set; }
         public AccountModel Account { get; set; }
+
+        // Stored transactions (Phase 2): our id, what it counts as, and who decided
+        public long Id { get; set; }
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public Treatment Treatment { get; set; }
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public ClassificationSource TreatmentSource { get; set; }
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public ClassificationSource CategorySource { get; set; }
+        public string? Notes { get; set; }
+        public List<TransactionSplitModel> Splits { get; set; } = [];
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public AccountBudgetRole AccountRole { get; set; }
+        /// <summary>Plaid's detailed category code</summary>
+        public string? PlaidCategory { get; set; }
+        public string? MerchantKey { get; set; }
+
+        /// <summary>Counted in budgets: spending or a refund, on an account that counts as spending</summary>
+        public bool IsCounted => AccountRole == AccountBudgetRole.Spending && Treatment is Treatment.Spending or Treatment.Refund;
         public IncomePaymentModel IncomePayment { get; set; }
         public MonthlyTimelineListItem? MonthlyTimeline
         {
