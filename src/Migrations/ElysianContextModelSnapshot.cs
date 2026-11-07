@@ -22,6 +22,100 @@ namespace Elysian.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Elysian.Domain.Data.BankTransaction", b =>
+                {
+                    b.Property<long>("BankTransactionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("BankTransactionId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateOnly?>("AuthorizedDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("BudgetDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<int>("FinancialAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("IsoCurrencyCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("MerchantEntityId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("MerchantName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PaymentChannel")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<bool>("Pending")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PendingTransactionId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PfcConfidence")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("PfcDetailed")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PfcPrimary")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PlaidTransactionId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset?>("RemovedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("SyncedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("TransactionType")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("BankTransactionId");
+
+                    b.HasIndex("PlaidTransactionId");
+
+                    b.HasIndex("FinancialAccountId", "BudgetDate");
+
+                    b.ToTable("BankTransaction", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.BillTracking", b =>
                 {
                     b.Property<int>("BillTrackingId")
@@ -297,6 +391,98 @@ namespace Elysian.Migrations
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
+            modelBuilder.Entity("Elysian.Domain.Data.FinancialAccount", b =>
+                {
+                    b.Property<int>("FinancialAccountId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("FinancialAccountId"));
+
+                    b.Property<decimal?>("AvailableBalance")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTimeOffset?>("BalanceAsOf")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("BudgetRole")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("CreditLimit")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CurrentBalance")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("InstitutionAccessItemId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("IsoCurrencyCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Mask")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTimeOffset>("ModifiedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ModifiedByUserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("OfficialName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PlaidAccountId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Subtype")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.HasKey("FinancialAccountId");
+
+                    b.HasIndex("InstitutionAccessItemId");
+
+                    b.HasIndex("PlaidAccountId");
+
+                    b.ToTable("FinancialAccount", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.FinancialCategory", b =>
                 {
                     b.Property<int>("FinancialCategoryId")
@@ -525,8 +711,14 @@ namespace Elysian.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("InstitutionAccessItemId"));
 
                     b.Property<string>("AccessToken")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AccessTokenCiphertext")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset?>("ConsentExpiresAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
@@ -535,16 +727,37 @@ namespace Elysian.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("InstitutionColor")
+                        .HasMaxLength(7)
+                        .HasColumnType("nvarchar(7)");
+
                     b.Property<string>("InstitutionId")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("InstitutionLogo")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("InstitutionName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
                     b.Property<string>("ItemId")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTimeOffset?>("LastSyncRequestedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("LastSyncedAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<DateTimeOffset>("ModifiedAt")
                         .HasColumnType("datetimeoffset");
@@ -553,12 +766,32 @@ namespace Elysian.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("NewAccountsAvailable")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("RemovedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
                     b.Property<string>("TenantId")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<string>("TransactionsCursor")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("WebhookUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.HasKey("InstitutionAccessItemId");
+
+                    b.HasIndex("ItemId");
 
                     b.ToTable("InstitutionAccessItem", (string)null);
 
@@ -1056,6 +1289,62 @@ namespace Elysian.Migrations
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
+            modelBuilder.Entity("Elysian.Domain.Data.PlaidWebhookEvent", b =>
+                {
+                    b.Property<long>("PlaidWebhookEventId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("PlaidWebhookEventId"));
+
+                    b.Property<string>("BodySha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ItemId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("ProcessedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("WebhookCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("WebhookType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("PlaidWebhookEventId");
+
+                    b.HasIndex("BodySha256")
+                        .IsUnique();
+
+                    b.ToTable("PlaidWebhookEvent", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.PriceType", b =>
                 {
                     b.Property<int>("PriceTypeId")
@@ -1456,6 +1745,55 @@ namespace Elysian.Migrations
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
+            modelBuilder.Entity("Elysian.Domain.Data.SyncRun", b =>
+                {
+                    b.Property<long>("SyncRunId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("SyncRunId"));
+
+                    b.Property<int>("Added")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset?>("FinishedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("InstitutionAccessItemId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Modified")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Removed")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Trigger")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.HasKey("SyncRunId");
+
+                    b.HasIndex("InstitutionAccessItemId", "StartedAt");
+
+                    b.ToTable("SyncRun", (string)null);
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.TransactionCategory", b =>
                 {
                     b.Property<int>("TransactionCategoryId")
@@ -1647,6 +1985,17 @@ namespace Elysian.Migrations
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
+            modelBuilder.Entity("Elysian.Domain.Data.BankTransaction", b =>
+                {
+                    b.HasOne("Elysian.Domain.Data.FinancialAccount", "FinancialAccount")
+                        .WithMany("Transactions")
+                        .HasForeignKey("FinancialAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("FinancialAccount");
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.BudgetAccessItem", b =>
                 {
                     b.HasOne("Elysian.Domain.Data.Budget", "Budget")
@@ -1694,6 +2043,17 @@ namespace Elysian.Migrations
                         .IsRequired();
 
                     b.Navigation("Budget");
+                });
+
+            modelBuilder.Entity("Elysian.Domain.Data.FinancialAccount", b =>
+                {
+                    b.HasOne("Elysian.Domain.Data.InstitutionAccessItem", "InstitutionAccessItem")
+                        .WithMany("Accounts")
+                        .HasForeignKey("InstitutionAccessItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("InstitutionAccessItem");
                 });
 
             modelBuilder.Entity("Elysian.Domain.Data.IncomePayment", b =>
@@ -1881,6 +2241,15 @@ namespace Elysian.Migrations
                     b.Navigation("HeroPhoto");
                 });
 
+            modelBuilder.Entity("Elysian.Domain.Data.SyncRun", b =>
+                {
+                    b.HasOne("Elysian.Domain.Data.InstitutionAccessItem", null)
+                        .WithMany()
+                        .HasForeignKey("InstitutionAccessItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.TransactionCategory", b =>
                 {
                     b.HasOne("Elysian.Domain.Data.Budget", "Budget")
@@ -1929,6 +2298,11 @@ namespace Elysian.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Elysian.Domain.Data.FinancialAccount", b =>
+                {
+                    b.Navigation("Transactions");
+                });
+
             modelBuilder.Entity("Elysian.Domain.Data.IncomeSource", b =>
                 {
                     b.Navigation("IncomePayments");
@@ -1937,6 +2311,8 @@ namespace Elysian.Migrations
             modelBuilder.Entity("Elysian.Domain.Data.InstitutionAccessItem", b =>
                 {
                     b.Navigation("AccessUsers");
+
+                    b.Navigation("Accounts");
                 });
 
             modelBuilder.Entity("Elysian.Domain.Data.Story", b =>

@@ -11,7 +11,7 @@ namespace Elysian.Application.Features.Financial.Commands
     /// to that bank again. The access token is looked up here and never comes from, or goes to, the browser.
     /// </summary>
     [Authorize(Policy = PolicyNames.BudgetWrite)]
-    public record CreateLinkTokenCommand(int? InstitutionAccessItemId = null) : IRequest<LinkTokenModel>;
+    public record CreateLinkTokenCommand(int? InstitutionAccessItemId = null, bool AccountSelection = false) : IRequest<LinkTokenModel>;
 
     public class CreateLinkTokenCommandHandler(IFinancialService financialService, IAccessTokenService accessTokenService,
         IClaimsPrincipalAccessor claimsPrincipalAccessor)
@@ -28,7 +28,11 @@ namespace Elysian.Application.Features.Financial.Commands
             // Only finds banks linked by the signed-in person
             var accessToken = await accessTokenService.GetAccessTokenAsync(userId, itemId)
                 ?? throw new NotFoundException("Linked bank", itemId);
-            return await financialService.CreateLinkTokenAsync(userId, accessToken.AccessToken);
+            if (accessToken.AccessToken == null)
+            {
+                throw new NotFoundException("Linked bank", itemId);
+            }
+            return await financialService.CreateLinkTokenAsync(userId, accessToken.AccessToken, request.AccountSelection);
         }
     }
 }

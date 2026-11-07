@@ -20,11 +20,13 @@ namespace Elysian.Infrastructure.Context
 
         }
 
+        public DbSet<BankTransaction> BankTransactions { get; set; }
         public DbSet<BillTracking> BillTrackings { get; set; }
         public DbSet<Budget> Budgets { get; set; }
         public DbSet<BudgetAccessItem> BudgetAccessItems { get; set; }
         public DbSet<BudgetCategory> BudgetCategories { get; set; }
         public DbSet<BudgetExcludedTransaction> BudgetExcludedTransactions { get; set; }
+        public DbSet<FinancialAccount> FinancialAccounts { get; set; }
         public DbSet<FinancialCategory> FinancialCategories { get; set; }
         public DbSet<IncomeSource> IncomeSources { get; set; }
         public DbSet<IncomePayment> IncomePayments { get; set; }
@@ -37,6 +39,7 @@ namespace Elysian.Infrastructure.Context
         public DbSet<OAuthState> OAuthStates { get; set; }
         public DbSet<OAuthToken> OAuthTokens { get; set; }
         public DbSet<Photo> Photos { get; set; }
+        public DbSet<PlaidWebhookEvent> PlaidWebhookEvents { get; set; }
         public DbSet<Placement> Placements { get; set; }
         public DbSet<PriceType> PriceTypes { get; set; }
         public DbSet<Product> Products { get; set; }
@@ -44,6 +47,7 @@ namespace Elysian.Infrastructure.Context
         public DbSet<ProductSession> ProductSessions { get; set; }
         public DbSet<ProductType> ProductTypes { get; set; }
         public DbSet<Story> Stories { get; set; }
+        public DbSet<SyncRun> SyncRuns { get; set; }
         public DbSet<TransactionCategory> TransactionCategories { get; set; }
         public DbSet<UnitType> UnitTypes { get; set; }
         public DbSet<User> Users { get; set; }

@@ -111,11 +111,23 @@ namespace Elysian.Infrastructure
             services.AddTransient<IBudgetService, BudgetService>();
             services.AddTransient<IIncomeService, IncomeService>();
             services.AddTransient<IFinancialService, PlaidService>();
+            services.AddTransient(_ => new PlaidRetryHandler());
             services.AddHttpClient("PlaidClient", (serviceProvider, httpClient) =>
             {
                 var plaidSettings = serviceProvider.GetRequiredService<IOptions<PlaidSettings>>();
                 httpClient.BaseAddress = new Uri(plaidSettings.Value.BaseUrl);
-            });
+            })
+            // Temporary Plaid failures (rate limits, 5xx, bank outages) are retried with backoff
+            .AddHttpMessageHandler<PlaidRetryHandler>();
+
+            // Stored bank data: encrypted tokens, the sync from /transactions/sync, webhooks, and the pages' reads
+            services.TryAddSingleton(TimeProvider.System);
+            services.AddSingleton<IAccessTokenProtector, AccessTokenProtector>();
+            services.AddSingleton<IPlaidSyncQueue, AzurePlaidSyncQueue>();
+            services.AddTransient<ITransactionSyncService, TransactionSyncService>();
+            services.AddTransient<IConnectionService, ConnectionService>();
+            services.AddTransient<PlaidWebhookVerifier>();
+            services.AddTransient<IPlaidWebhookService, PlaidWebhookService>();
             return services;
         }
 

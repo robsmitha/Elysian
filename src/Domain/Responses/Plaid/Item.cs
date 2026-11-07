@@ -10,7 +10,7 @@ namespace Elysian.Domain.Responses.Plaid
     {
         public List<string> available_products { get; set; }
         public List<string> billed_products { get; set; }
-        public object consent_expiration_time { get; set; }
+        public DateTimeOffset? consent_expiration_time { get; set; }
         public Error error { get; set; }
         public string institution_id { get; set; }
         public string item_id { get; set; }

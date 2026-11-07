@@ -87,37 +87,94 @@ namespace Elysian.Infrastructure.Services
             return results;
         }
 
-        public async Task<LinkTokenModel> CreateLinkTokenAsync(string userId, string accessToken = null)
+        // Cards, checking and savings: what budgets, paychecks and goals use
+        private static readonly object AccountFilters = new
         {
-            var response = string.IsNullOrEmpty(accessToken)
-                ? await PostAsync<CreateLinkTokenResponse>("link/token/create", new
-                {
-                    client_id = _plaidSettings.ClientId,
-                    secret = _plaidSettings.Secret,
-                    user = new
-                    {
-                        client_user_id = userId
-                    },
-                    client_name = multiTenantContextAccessor.MultiTenantContext.TenantInfo.Name,
-                    products = new[] { "transactions" },
-                    country_codes = new[] { "US" },
-                    language = "en"
-                })
-                : await PostAsync<CreateLinkTokenResponse>("link/token/create", new
-                {
-                    client_id = _plaidSettings.ClientId,
-                    secret = _plaidSettings.Secret,
-                    user = new
-                    {
-                        client_user_id = userId
-                    },
-                    client_name = multiTenantContextAccessor.MultiTenantContext.TenantInfo.Name,
-                    access_token = accessToken,
-                    country_codes = new[] { "US" },
-                    language = "en"
-                });
+            depository = new { account_subtypes = new[] { "checking", "savings", "money market" } },
+            credit = new { account_subtypes = new[] { "credit card" } }
+        };
 
+        public string? WebhookUrl => string.IsNullOrWhiteSpace(_plaidSettings.WebhookUrl) ? null : _plaidSettings.WebhookUrl;
+
+        /// <summary>
+        /// Without an access token, a token to link a new bank. With one, update mode for that bank: sign in again, or
+        /// (with <paramref name="accountSelection"/>) choose which of its accounts are shared.
+        /// </summary>
+        public async Task<LinkTokenModel> CreateLinkTokenAsync(string userId, string? accessToken = null, bool accountSelection = false)
+        {
+            // Only fields that are set are sent; Plaid rejects some fields when they're null
+            var body = new Dictionary<string, object>
+            {
+                ["client_id"] = _plaidSettings.ClientId,
+                ["secret"] = _plaidSettings.Secret,
+                ["user"] = new { client_user_id = userId },
+                ["client_name"] = multiTenantContextAccessor.MultiTenantContext.TenantInfo.Name,
+                ["country_codes"] = new[] { "US" },
+                ["language"] = "en"
+            };
+            if (WebhookUrl != null)
+            {
+                body["webhook"] = WebhookUrl;
+            }
+            if (!string.IsNullOrWhiteSpace(_plaidSettings.RedirectUri))
+            {
+                body["redirect_uri"] = _plaidSettings.RedirectUri;
+            }
+
+            if (string.IsNullOrEmpty(accessToken))
+            {
+                body["products"] = new[] { "transactions" };
+                body["transactions"] = new { days_requested = _plaidSettings.DaysRequested };
+                body["account_filters"] = AccountFilters;
+            }
+            else
+            {
+                body["access_token"] = accessToken;
+                if (accountSelection)
+                {
+                    body["update"] = new { account_selection_enabled = true };
+                }
+            }
+
+            var response = await PostAsync<CreateLinkTokenResponse>("link/token/create", body);
             return mapper.Map<LinkTokenModel>(response);
+        }
+
+        /// <summary>One page of changes since <paramref name="cursor"/> (all history when null).</summary>
+        public async Task<TransactionsSyncResponse> SyncTransactionsAsync(string accessToken, string? cursor)
+        {
+            var body = new Dictionary<string, object>
+            {
+                ["client_id"] = _plaidSettings.ClientId,
+                ["secret"] = _plaidSettings.Secret,
+                ["access_token"] = accessToken,
+                ["count"] = TransactionPageSize
+            };
+            if (!string.IsNullOrEmpty(cursor))
+            {
+                body["cursor"] = cursor;
+            }
+            return await PostAsync<TransactionsSyncResponse>("transactions/sync", body);
+        }
+
+        public async Task UpdateItemWebhookAsync(string accessToken, string webhookUrl) =>
+            await PostAsync<RequestIdResponse>("item/webhook/update", new
+            {
+                client_id = _plaidSettings.ClientId,
+                secret = _plaidSettings.Secret,
+                access_token = accessToken,
+                webhook = webhookUrl
+            });
+
+        public async Task<WebhookVerificationKey> GetWebhookVerificationKeyAsync(string keyId)
+        {
+            var response = await PostAsync<WebhookVerificationKeyResponse>("webhook_verification_key/get", new
+            {
+                client_id = _plaidSettings.ClientId,
+                secret = _plaidSettings.Secret,
+                key_id = keyId
+            });
+            return response.key;
         }
 
         public async Task<ItemPublicTokenExchangeModel> ItemPublicTokenExchangeAsync(string publicToken)

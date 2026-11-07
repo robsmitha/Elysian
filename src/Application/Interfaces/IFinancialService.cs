@@ -1,4 +1,5 @@
 ﻿using Elysian.Application.Features.Financial.Models;
+using Elysian.Domain.Responses.Plaid;
 
 namespace Elysian.Application.Interfaces
 {
@@ -12,7 +13,15 @@ namespace Elysian.Application.Interfaces
         Task<List<TransactionModel>> GetTransactionsAsync(string accessToken, DateTime startDate, DateTime endDate);
         Task<string> RefreshTransactionsAsync(string accessToken);
         Task<InstitutionAccessTokenModel> SetAccessTokenAsync(string userId, string accessToken);
-        Task<LinkTokenModel> CreateLinkTokenAsync(string userId, string accessToken = null);
+        Task<LinkTokenModel> CreateLinkTokenAsync(string userId, string? accessToken = null, bool accountSelection = false);
         Task<ItemPublicTokenExchangeModel> ItemPublicTokenExchangeAsync(string publicToken);
+
+        /// <summary>One page of /transactions/sync after <paramref name="cursor"/> (from the start when null)</summary>
+        Task<TransactionsSyncResponse> SyncTransactionsAsync(string accessToken, string? cursor);
+        Task UpdateItemWebhookAsync(string accessToken, string webhookUrl);
+        Task<WebhookVerificationKey> GetWebhookVerificationKeyAsync(string keyId);
+
+        /// <summary>The webhook URL new and existing banks should use, or null when webhooks are off</summary>
+        string? WebhookUrl { get; }
     }
 }

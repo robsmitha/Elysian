@@ -57,13 +57,59 @@ namespace Elysian.Domain.Responses.Plaid
             public string payment_channel { get; set; }
             public PaymentMeta payment_meta { get; set; }
             public bool pending { get; set; }
-            public object pending_transaction_id { get; set; }
-            public object personal_finance_category { get; set; }
+            /// <summary>On a posted transaction, the id of the pending transaction it replaces</summary>
+            public string? pending_transaction_id { get; set; }
+            public PersonalFinanceCategory? personal_finance_category { get; set; }
+            public string? merchant_entity_id { get; set; }
             public object transaction_code { get; set; }
             public string transaction_id { get; set; }
             public string transaction_type { get; set; }
             public object unofficial_currency_code { get; set; }
         }
 
+        public class PersonalFinanceCategory
+        {
+            public string? primary { get; set; }
+            public string? detailed { get; set; }
+            public string? confidence_level { get; set; }
+        }
+    }
+
+    /// <summary>One page of /transactions/sync</summary>
+    public class TransactionsSyncResponse
+    {
+        public List<Account> accounts { get; set; } = [];
+        public List<TransactionResponse.Transaction> added { get; set; } = [];
+        public List<TransactionResponse.Transaction> modified { get; set; } = [];
+        public List<RemovedTransaction> removed { get; set; } = [];
+        public string next_cursor { get; set; }
+        public bool has_more { get; set; }
+        public string request_id { get; set; }
+
+        public class RemovedTransaction
+        {
+            public string transaction_id { get; set; }
+            public string? account_id { get; set; }
+        }
+    }
+
+    /// <summary>The public key Plaid signs webhooks with (/webhook_verification_key/get)</summary>
+    public class WebhookVerificationKeyResponse
+    {
+        public WebhookVerificationKey key { get; set; }
+        public string request_id { get; set; }
+    }
+
+    public class WebhookVerificationKey
+    {
+        public string alg { get; set; }
+        public string crv { get; set; }
+        public string kid { get; set; }
+        public string kty { get; set; }
+        public string use { get; set; }
+        public string x { get; set; }
+        public string y { get; set; }
+        public long created_at { get; set; }
+        public long? expired_at { get; set; }
     }
 }

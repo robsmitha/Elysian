@@ -5,22 +5,14 @@ using MediatR;
 
 namespace Elysian.Application.Features.Financial.Queries
 {
+    /// <summary>The person's banks with accounts, balances and status, as stored by the last sync.</summary>
     [Authorize(Policy = PolicyNames.BudgetRead)]
     public record GetUserAccessItemsQuery : IRequest<List<InstitutionAccessItemModel>>;
 
-    public class GetUserAccessItemsQueryHandler(IFinancialService financialService, IAccessTokenService accessTokenService, IClaimsPrincipalAccessor claimsPrincipalAccessor)
+    public class GetUserAccessItemsQueryHandler(IConnectionService connectionService, IClaimsPrincipalAccessor claimsPrincipalAccessor)
             : IRequestHandler<GetUserAccessItemsQuery, List<InstitutionAccessItemModel>>
     {
-        public async Task<List<InstitutionAccessItemModel>> Handle(GetUserAccessItemsQuery request, CancellationToken cancellationToken)
-        {
-            var accessTokens = await accessTokenService.GetAccessTokensAsync(claimsPrincipalAccessor.UserId);
-            var userAccessItems = new List<InstitutionAccessItemModel>();
-            foreach (var accessToken in accessTokens)
-            {
-                // Every bank comes back, with a status when Plaid can't read it
-                userAccessItems.Add(await AccessItemLoader.LoadAsync(financialService, accessToken));
-            }
-            return userAccessItems;
-        }
+        public async Task<List<InstitutionAccessItemModel>> Handle(GetUserAccessItemsQuery request, CancellationToken cancellationToken) =>
+            await connectionService.GetAccessItemsAsync(claimsPrincipalAccessor.UserId!);
     }
 }

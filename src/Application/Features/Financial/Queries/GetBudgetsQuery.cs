@@ -25,8 +25,9 @@ namespace Elysian.Application.Features.Financial.Queries
         public int TotalPercent => EstimateTotal > 0 ? (int)Math.Round((TransactionsTotal / EstimateTotal) * 100) : 0;
     }
 
+    // Totals come from stored transactions, so the list no longer calls Plaid once per budget per bank
     public class GetBudgetsQueryHandler(IBudgetService budgetService, IClaimsPrincipalAccessor claimsPrincipalAccessor,
-        IAccessTokenService accessTokenService, IFinancialService financialService) : IRequestHandler<GetBudgetsQuery, List<BudgetListItem>>
+        IConnectionService connectionService) : IRequestHandler<GetBudgetsQuery, List<BudgetListItem>>
     {
         public async Task<List<BudgetListItem>> Handle(GetBudgetsQuery request, CancellationToken cancellationToken)
         {
@@ -44,21 +45,10 @@ namespace Elysian.Application.Features.Financial.Queries
 
         private async Task<BudgetListItem> GetBudgetItemAsync(BudgetModel budget)
         {
-            var expired = false; 
-            var accessTokens = await accessTokenService.GetBudgetAccessTokensAsync(claimsPrincipalAccessor.UserId, budget.BudgetId);
-            var allTransactions = new List<TransactionModel>();
-            foreach (var accessToken in accessTokens)
-            {
-                try
-                {
-                    var transactions = await financialService.GetTransactionsAsync(accessToken.AccessToken, budget.StartDate, budget.EndDate);
-                    allTransactions.AddRange(transactions);
-                }
-                catch (FinancialServiceException fex)
-                {
-                    expired |= AccessItemLoader.IsLoginRequired(fex);
-                }
-            }
+            var accessItems = await connectionService.GetBudgetAccessItemsAsync(claimsPrincipalAccessor.UserId!, budget.BudgetId);
+            var expired = accessItems.Any(a => a.ExpiredAccessItem != null);
+            var allTransactions = await connectionService.GetTransactionsAsync(
+                accessItems.Select(a => a.InstitutionAccessItemId).ToList(), budget.StartDate, budget.EndDate);
 
             var excludedTransactions = await budgetService.GetExcludedTransactionsAsync(claimsPrincipalAccessor.UserId, budget.BudgetId);
             var budgetCategories = await budgetService.GetBudgetCategoriesAsync(claimsPrincipalAccessor.UserId, budget.BudgetId);

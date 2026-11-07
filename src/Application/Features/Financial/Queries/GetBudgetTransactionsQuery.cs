@@ -11,58 +11,32 @@ namespace Elysian.Application.Features.Financial.Queries
 
     public record GetBudgetTransactionsQueryResponse(List<TransactionModel> Transactions, List<ExpiredAccessItem> ExpiredAccessItems);
 
-    public class GetBudgetTransactionsQueryHandler(IFinancialService financialService, IAccessTokenService accessTokenService,
-        IBudgetService budgetService, ICategoryService categoryService, IClaimsPrincipalAccessor claimsPrincipalAccessor)
+    public class GetBudgetTransactionsQueryHandler(IConnectionService connectionService, IBudgetService budgetService,
+        ICategoryService categoryService, IClaimsPrincipalAccessor claimsPrincipalAccessor)
         : IRequestHandler<GetBudgetTransactionsQuery, GetBudgetTransactionsQueryResponse>
     {
         public async Task<GetBudgetTransactionsQueryResponse> Handle(GetBudgetTransactionsQuery request, CancellationToken cancellationToken)
         {
-            var userId = claimsPrincipalAccessor.UserId;
-            var allTransactions = new List<TransactionModel>();
-            var expiredAccessItems = new List<ExpiredAccessItem>();
+            var userId = claimsPrincipalAccessor.UserId!;
             var budget = await budgetService.GetBudgetAsync(userId, request.BudgetId)
                 ?? throw new NotFoundException("Budget", request.BudgetId);
-            var accessTokens = await accessTokenService.GetBudgetAccessTokensAsync(userId, budget.BudgetId);
-            foreach (var accessToken in accessTokens)
+
+            var accessItems = await connectionService.GetBudgetAccessItemsAsync(userId, budget.BudgetId);
+            var transactions = await connectionService.GetTransactionsAsync(
+                accessItems.Select(a => a.InstitutionAccessItemId).ToList(), budget.StartDate, budget.EndDate);
+
+            var categories = (await categoryService.GetTransactionCategoriesAsync(userId, request.BudgetId))
+                .GroupBy(c => c.TransactionId)
+                .ToDictionary(g => g.Key, g => g.First());
+            foreach (var transaction in transactions)
             {
-                try
-                {
-                    var transactions = await financialService.GetTransactionsAsync(accessToken.AccessToken, budget.StartDate, budget.EndDate);
-                    allTransactions.AddRange(transactions);
-                }
-                catch (FinancialServiceException fex) when (AccessItemLoader.IsLoginRequired(fex))
-                {
-                    var institution = await AccessItemLoader.GetInstitutionAsync(financialService, accessToken.InstitutionId);
-                    expiredAccessItems.Add(AccessItemLoader.ExpiredFor(fex, accessToken.InstitutionAccessItemId, institution)!);
-                }
-                catch (FinancialServiceException)
-                {
-                    // A bank that's temporarily down shouldn't hide the others
-                }
+                transaction.Category = categories.TryGetValue(transaction.transaction_id, out var c)
+                    ? new FinancialCategoryModel { FinancialCategoryId = c.FinancialCategoryId, Name = c.FinancialCategoryName }
+                    : null;
             }
-            var transactionCategories = await categoryService.GetTransactionCategoriesAsync(userId, request.BudgetId);
-            var transactionCategoryData = from t in allTransactions
-                                          join c in transactionCategories on t.transaction_id equals c.TransactionId into tmpC
-                                          from c in tmpC.DefaultIfEmpty()
-                                          select new
-                                          {
-                                              Transaction = t,
-                                              Category = c == null
-                                              ? null
-                                              : new FinancialCategoryModel
-                                              {
-                                                  FinancialCategoryId = c.FinancialCategoryId,
-                                                  Name = c.FinancialCategoryName
-                                              }
-                                          };
-            return new GetBudgetTransactionsQueryResponse(
-                Transactions: transactionCategoryData.Select(d =>
-                {
-                    var transaction = d.Transaction;
-                    transaction.Category = d.Category;
-                    return transaction;
-                }).ToList(),
-                ExpiredAccessItems: expiredAccessItems);
+
+            return new GetBudgetTransactionsQueryResponse(transactions,
+                accessItems.Select(a => a.ExpiredAccessItem).OfType<ExpiredAccessItem>().ToList());
         }
     }
 }
