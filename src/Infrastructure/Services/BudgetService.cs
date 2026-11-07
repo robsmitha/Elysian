@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using Elysian.Application.Exceptions;
 using Elysian.Application.Features.Financial.Models;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
@@ -7,6 +8,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Elysian.Infrastructure.Services
 {
+    /// <summary>
+    /// Budgets belong to the person who made them. Every method that takes a budget id checks that first, and a budget
+    /// that doesn't exist or isn't theirs is reported as not found.
+    /// </summary>
     public class BudgetService(ElysianContext context, IMapper mapper) : IBudgetService
     {
         public async Task<List<BudgetModel>> GetBudgetsAsync(string userId)
@@ -15,23 +20,25 @@ namespace Elysian.Infrastructure.Services
             return mapper.Map<List<BudgetModel>>(budgets);
         }
 
+        /// <summary>The budget, or null when it doesn't exist or belongs to someone else.</summary>
         public async Task<BudgetModel> GetBudgetAsync(string userId, int budgetId)
         {
-            var budget = await context.Budgets.FindAsync(budgetId);
-            var model = mapper.Map<BudgetModel>(budget);
-            return model;
+            var budget = await context.Budgets.FirstOrDefaultAsync(b => b.BudgetId == budgetId && b.UserId == userId);
+            return budget == null ? null : mapper.Map<BudgetModel>(budget);
         }
 
         public async Task<List<BudgetCategoryModel>> GetBudgetCategoriesAsync(string userId, int budgetId)
         {
+            await EnsureOwnerAsync(userId, budgetId);
             var budgetCategories = await context.BudgetCategories
                 .Include(i => i.FinancialCategory).Where(b => b.BudgetId == budgetId).ToListAsync();
-            var model = mapper.Map<List<BudgetCategoryModel>>(budgetCategories);
-            return model;
+            return mapper.Map<List<BudgetCategoryModel>>(budgetCategories);
         }
 
         public async Task<BudgetModel> AddBudgetAsync(string userId, BudgetModel model)
         {
+            var accessItemIds = await OwnedAccessItemIdsAsync(userId, model.BudgetAccessItems);
+
             var budget = new Budget
             {
                 Name = model.Name,
@@ -42,97 +49,45 @@ namespace Elysian.Infrastructure.Services
             await context.AddAsync(budget);
             await context.SaveChangesAsync();
 
-            if (model.Categories?.Any() == true)
+            foreach (var categoryId in CategoryIds(model).Distinct())
             {
-                foreach (var category in model.Categories)
-                {
-                    await context.AddAsync(new BudgetCategory
-                    {
-                        BudgetId = budget.BudgetId,
-                        FinancialCategoryId = category.FinancialCategoryId
-                    });
-                }
-                await context.SaveChangesAsync();
+                await context.AddAsync(new BudgetCategory { BudgetId = budget.BudgetId, FinancialCategoryId = categoryId });
             }
 
-            if (model.BudgetAccessItems?.Any() == true)
+            foreach (var accessItemId in accessItemIds)
             {
-                foreach (var accessItem in model.BudgetAccessItems)
-                {
-                    await context.AddAsync(new BudgetAccessItem
-                    {
-                        BudgetId = budget.BudgetId,
-                        InstitutionAccessItemId = accessItem.InstitutionAccessItemId
-                    });
-                }
-                await context.SaveChangesAsync();
+                await context.AddAsync(new BudgetAccessItem { BudgetId = budget.BudgetId, InstitutionAccessItemId = accessItemId });
             }
+            await context.SaveChangesAsync();
 
             return mapper.Map<BudgetModel>(budget);
         }
 
         public async Task<BudgetModel> UpdateBudgetAsync(string userId, BudgetModel model)
         {
-            var budget = await context.Budgets.FindAsync(model.BudgetId);
+            var budget = await context.Budgets.FirstOrDefaultAsync(b => b.BudgetId == model.BudgetId && b.UserId == userId)
+                ?? throw new NotFoundException("Budget", model.BudgetId);
+            var newAccessItemIds = await OwnedAccessItemIdsAsync(userId, model.BudgetAccessItems);
 
             budget.Name = model.Name;
             budget.StartDate = model.StartDate;
             budget.EndDate = model.EndDate;
 
-            var newCategoryIds = model.Categories.Select(c => c.FinancialCategoryId);
-            var oldCategories = await context.BudgetCategories.Where(c => c.BudgetId == model.BudgetId).ToListAsync();
-            var oldCategoryIds = oldCategories.Select(c => c.FinancialCategoryId).ToList();
-
-            if (model.Categories?.Count > 0)
+            // Categories: only rows in this budget are touched
+            var newCategoryIds = CategoryIds(model).ToHashSet();
+            var oldCategories = await context.BudgetCategories.Where(c => c.BudgetId == budget.BudgetId).ToListAsync();
+            context.RemoveRange(oldCategories.Where(c => !newCategoryIds.Contains(c.FinancialCategoryId)));
+            foreach (var categoryId in newCategoryIds.Except(oldCategories.Select(c => c.FinancialCategoryId)))
             {
-                var removeCategoryIds = oldCategoryIds.Except(newCategoryIds).ToList();
-                foreach (var categoryId in removeCategoryIds)
-                {
-                    var budgetCategory = await context.BudgetCategories.FirstOrDefaultAsync(c => c.FinancialCategoryId == categoryId);
-                    context.Remove(budgetCategory);
-                }
-
-                var addCategoryIds = newCategoryIds.Except(oldCategoryIds).ToList();
-                foreach (var categoryId in addCategoryIds)
-                {
-                    await context.AddAsync(new BudgetCategory
-                    {
-                        BudgetId = budget.BudgetId,
-                        FinancialCategoryId = categoryId
-                    });
-                }
-            }
-            else if (oldCategories.Any())
-            {
-                context.RemoveRange(oldCategories);
+                await context.AddAsync(new BudgetCategory { BudgetId = budget.BudgetId, FinancialCategoryId = categoryId });
             }
 
-            var newAccessItemIds = model.BudgetAccessItems.Select(c => c.InstitutionAccessItemId);
-            var oldAccessItems = await context.BudgetAccessItems.Where(c => c.BudgetId == model.BudgetId).ToListAsync();
-            var oldAccessItemsIds = oldAccessItems.Select(c => c.InstitutionAccessItemId).ToList();
-            if (model.BudgetAccessItems?.Count > 0)
+            // Banks: only rows in this budget are touched
+            var oldAccessItems = await context.BudgetAccessItems.Where(c => c.BudgetId == budget.BudgetId).ToListAsync();
+            context.RemoveRange(oldAccessItems.Where(a => !newAccessItemIds.Contains(a.InstitutionAccessItemId)));
+            foreach (var accessItemId in newAccessItemIds.Except(oldAccessItems.Select(a => a.InstitutionAccessItemId)))
             {
-                var removeAccessItemsIds = oldAccessItemsIds.Except(newAccessItemIds).ToList();
-                foreach (var removeAccessItemId in removeAccessItemsIds)
-                {
-                    var budgetAccessItem = await context.BudgetAccessItems.FirstOrDefaultAsync(c => c.BudgetId == model.BudgetId 
-                        && c.InstitutionAccessItemId == removeAccessItemId);
-                    context.Remove(budgetAccessItem);
-                }
-
-                var addAccessItemIds = newAccessItemIds.Except(oldAccessItemsIds).ToList();
-                foreach (var accessItemId in addAccessItemIds)
-                {
-                    await context.AddAsync(new BudgetAccessItem
-                    {
-                        BudgetId = budget.BudgetId,
-                        InstitutionAccessItemId = accessItemId
-                    });
-                }
-            }
-            else if (oldAccessItems.Any())
-            {
-                context.RemoveRange(oldAccessItems);
+                await context.AddAsync(new BudgetAccessItem { BudgetId = budget.BudgetId, InstitutionAccessItemId = accessItemId });
             }
 
             await context.SaveChangesAsync();
@@ -141,15 +96,34 @@ namespace Elysian.Infrastructure.Services
 
         public async Task<BudgetCategoryModel> UpdateBudgetCategoryEstimateAsync(string userId, int budgetId, int categoryId, decimal estimate)
         {
+            await EnsureOwnerAsync(userId, budgetId);
             var budgetCategory = await context.BudgetCategories
                 .FirstOrDefaultAsync(b => b.BudgetId == budgetId && b.FinancialCategoryId == categoryId);
+            if (budgetCategory == null)
+            {
+                budgetCategory = new BudgetCategory { BudgetId = budgetId, FinancialCategoryId = categoryId };
+                await context.AddAsync(budgetCategory);
+            }
             budgetCategory.Estimate = estimate;
             await context.SaveChangesAsync();
             return mapper.Map<BudgetCategoryModel>(budgetCategory);
         }
 
+        /// <summary>Adds a category to a budget; if it's already there, only a given estimate is applied.</summary>
         public async Task AddBudgetCategoryAsync(string userId, int budgetId, int categoryId, decimal? estimate = null)
         {
+            await EnsureOwnerAsync(userId, budgetId);
+            var existing = await context.BudgetCategories.FirstOrDefaultAsync(b => b.BudgetId == budgetId && b.FinancialCategoryId == categoryId);
+            if (existing != null)
+            {
+                if (estimate.HasValue)
+                {
+                    existing.Estimate = estimate.Value;
+                    await context.SaveChangesAsync();
+                }
+                return;
+            }
+
             await context.BudgetCategories.AddAsync(new BudgetCategory
             {
                 BudgetId = budgetId,
@@ -159,8 +133,10 @@ namespace Elysian.Infrastructure.Services
             await context.SaveChangesAsync();
         }
 
+        /// <summary>Excludes a transaction from a budget. Excluding one that's already excluded changes nothing.</summary>
         public async Task<BudgetExcludedTransactionModel> SetExcludedTransactionAsync(string userId, int budgetId, string transactionId)
         {
+            await EnsureOwnerAsync(userId, budgetId);
             var excludedTransaction = await context.BudgetExcludedTransactions.FirstOrDefaultAsync(t => t.BudgetId == budgetId && t.TransactionId == transactionId);
             if (excludedTransaction == null)
             {
@@ -169,15 +145,16 @@ namespace Elysian.Infrastructure.Services
                     BudgetId = budgetId,
                     TransactionId = transactionId
                 };
+                await context.AddAsync(excludedTransaction);
+                await context.SaveChangesAsync();
             }
 
-            await context.AddAsync(excludedTransaction);
-            await context.SaveChangesAsync();
             return mapper.Map<BudgetExcludedTransactionModel>(excludedTransaction);
         }
 
         public async Task<bool> RestoreExcludedTransactionAsync(string userId, int budgetId, string transactionId)
         {
+            await EnsureOwnerAsync(userId, budgetId);
             var excludedTransaction = await context.BudgetExcludedTransactions.FirstOrDefaultAsync(t => t.BudgetId == budgetId && t.TransactionId == transactionId);
             if (excludedTransaction == null)
             {
@@ -191,8 +168,41 @@ namespace Elysian.Infrastructure.Services
 
         public async Task<List<BudgetExcludedTransactionModel>> GetExcludedTransactionsAsync(string userId, int budgetId)
         {
+            await EnsureOwnerAsync(userId, budgetId);
             var excludedTransactions = await context.BudgetExcludedTransactions.Where(e => e.BudgetId == budgetId).ToListAsync();
             return mapper.Map<List<BudgetExcludedTransactionModel>>(excludedTransactions);
+        }
+
+        private async Task EnsureOwnerAsync(string userId, int budgetId)
+        {
+            if (!await context.Budgets.AnyAsync(b => b.BudgetId == budgetId && b.UserId == userId))
+            {
+                throw new NotFoundException("Budget", budgetId);
+            }
+        }
+
+        // Category ids from the request; the "Uncategorized" placeholder (-1) and blanks are left out
+        private static IEnumerable<int> CategoryIds(BudgetModel model) =>
+            (model.Categories ?? []).Where(c => c != null && c.FinancialCategoryId > 0).Select(c => c.FinancialCategoryId);
+
+        /// <summary>The requested banks, after checking each one was linked by this person.</summary>
+        private async Task<HashSet<int>> OwnedAccessItemIdsAsync(string userId, List<InstitutionAccessItemModel> requested)
+        {
+            var requestedIds = (requested ?? []).Where(a => a != null).Select(a => a.InstitutionAccessItemId).ToHashSet();
+            if (requestedIds.Count == 0)
+            {
+                return requestedIds;
+            }
+
+            var ownedIds = await context.InstitutionAccessItemUsers
+                .Where(u => u.User.ExternalUserId == userId && requestedIds.Contains(u.InstitutionAccessItemId))
+                .Select(u => u.InstitutionAccessItemId)
+                .ToListAsync();
+            if (ownedIds.Distinct().Count() != requestedIds.Count)
+            {
+                throw new ForbiddenAccessException();
+            }
+            return requestedIds;
         }
     }
 }

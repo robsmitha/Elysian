@@ -56,11 +56,7 @@ namespace Elysian.Application.Features.Financial.Queries
                 }
                 catch (FinancialServiceException fex)
                 {
-                    if (string.Equals(fex.Error?.error_code, PlaidErrorCodes.ITEM_LOGIN_REQUIRED,
-                               StringComparison.InvariantCultureIgnoreCase))
-                    {
-                        expired = true;
-                    }
+                    expired |= AccessItemLoader.IsLoginRequired(fex);
                 }
             }
 

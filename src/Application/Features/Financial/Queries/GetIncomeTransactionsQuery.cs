@@ -67,10 +67,11 @@ namespace Elysian.Application.Features.Financial.Queries
     {
         public async Task<GetIncomeTransactionsResponse> Handle(GetIncomeTransactionsQuery request, CancellationToken cancellationToken)
         {
-            var accessToken = await accessTokenService.GetAccessTokenAsync(claimsPrincipalAccessor.UserId, request.InstitutionAccessItemId);
+            var accessToken = await accessTokenService.GetAccessTokenAsync(claimsPrincipalAccessor.UserId, request.InstitutionAccessItemId)
+                ?? throw new NotFoundException("Linked bank", request.InstitutionAccessItemId);
             var transactions = new List<TransactionModel>();
             var expired = false;
-            var institution = await financialService.GetInstitutionAsync(accessToken.InstitutionId);
+            var institution = await AccessItemLoader.GetInstitutionAsync(financialService, accessToken.InstitutionId);
             try
             {
 
@@ -81,11 +82,7 @@ namespace Elysian.Application.Features.Financial.Queries
             }
             catch (FinancialServiceException fex)
             {
-                if (string.Equals(fex.Error?.error_code, PlaidErrorCodes.ITEM_LOGIN_REQUIRED,
-                           StringComparison.InvariantCultureIgnoreCase))
-                {
-                    expired = true;
-                }
+                expired = AccessItemLoader.IsLoginRequired(fex);
             }
 
             var incomePayments = await incomeService.GetIncomePaymentsByInstitutionAccessItemIdAsync(request.InstitutionAccessItemId);

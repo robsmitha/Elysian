@@ -1,7 +1,6 @@
 ﻿using Elysian.Application.Exceptions;
 using Elysian.Application.Features.Financial.Models;
 using Elysian.Application.Interfaces;
-using Elysian.Domain.Constants;
 using Elysian.Domain.Security;
 using MediatR;
 
@@ -16,49 +15,51 @@ namespace Elysian.Application.Features.Financial.Queries
     {
         public async Task<BudgetViewModel> Handle(GetBudgetQuery request, CancellationToken cancellationToken)
         {
-            var budget = await budgetService.GetBudgetAsync(claimsPrincipalAccessor.UserId, request.BudgetId);
-            var accessTokens = await accessTokenService.GetBudgetAccessTokensAsync(claimsPrincipalAccessor.UserId, budget.BudgetId);
+            var userId = claimsPrincipalAccessor.UserId;
+            // Null when the budget doesn't exist or belongs to someone else
+            var budget = await budgetService.GetBudgetAsync(userId, request.BudgetId)
+                ?? throw new NotFoundException("Budget", request.BudgetId);
+            var accessTokens = await accessTokenService.GetBudgetAccessTokensAsync(userId, budget.BudgetId);
 
-            var expiredAccessTokens = new List<ExpiredAccessItem>();
+            var expiredAccessItems = new List<ExpiredAccessItem>();
             var budgetAccessItems = new List<InstitutionAccessItemModel>();
             var allTransactions = new List<TransactionModel>();
             foreach (var accessToken in accessTokens)
             {
-                var institution = await financialService.GetInstitutionAsync(accessToken.InstitutionId);
+                // Every bank stays in the list, even one that needs attention, so editing the budget never drops it
+                var accessItem = await AccessItemLoader.LoadAsync(financialService, accessToken);
+                budgetAccessItems.Add(accessItem);
+
+                if (accessItem.Status != AccessItemStatus.Healthy)
+                {
+                    if (accessItem.ExpiredAccessItem != null)
+                    {
+                        expiredAccessItems.Add(accessItem.ExpiredAccessItem);
+                    }
+                    continue;
+                }
+
                 try
                 {
-                    var accounts = await financialService.GetAccountsAsync(accessToken.AccessToken);
-                    var item = await financialService.GetItemAsync(accessToken.AccessToken);
-
-                    budgetAccessItems.Add(new InstitutionAccessItemModel
-                    {
-                        Accounts = accounts,
-                        Institution = institution,
-                        Item = item,
-                        InstitutionAccessItemId = accessToken.InstitutionAccessItemId
-                    });
-
-                    var transactions = await financialService.GetTransactionsAsync(accessToken.AccessToken, budget.StartDate, budget.EndDate);
-
-                    allTransactions.AddRange(transactions);
+                    allTransactions.AddRange(await financialService.GetTransactionsAsync(accessToken.AccessToken, budget.StartDate, budget.EndDate));
                 }
                 catch (FinancialServiceException fex)
                 {
-                    if (string.Equals(fex.Error?.error_code, PlaidErrorCodes.ITEM_LOGIN_REQUIRED,
-                               StringComparison.InvariantCultureIgnoreCase))
+                    AccessItemLoader.ApplyError(accessItem, fex.Error?.error_code, fex.Error?.error_type, fex.Error?.display_message);
+                    if (accessItem.ExpiredAccessItem != null)
                     {
-                        expiredAccessTokens.Add(new ExpiredAccessItem(accessToken.AccessToken, fex.Error.error_message, institution));
+                        expiredAccessItems.Add(accessItem.ExpiredAccessItem);
                     }
                 }
             }
 
-            var excludedTransactions = await budgetService.GetExcludedTransactionsAsync(claimsPrincipalAccessor.UserId, budget.BudgetId);
-            var budgetCategories = await budgetService.GetBudgetCategoriesAsync(claimsPrincipalAccessor.UserId, request.BudgetId);
-            var transactionCategories = await categoryService.GetTransactionCategoriesAsync(claimsPrincipalAccessor.UserId, request.BudgetId);
+            var excludedTransactions = await budgetService.GetExcludedTransactionsAsync(userId, budget.BudgetId);
+            var budgetCategories = await budgetService.GetBudgetCategoriesAsync(userId, budget.BudgetId);
+            var transactionCategories = await categoryService.GetTransactionCategoriesAsync(userId, budget.BudgetId);
 
             return new BudgetViewModel(budget.Name, budget.StartDate, budget.EndDate,
                 budgetCategories, transactionCategories, allTransactions, budgetAccessItems,
-                expiredAccessTokens, excludedTransactions);
+                expiredAccessItems, excludedTransactions);
         }
     }
 }

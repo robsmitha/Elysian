@@ -1,7 +1,6 @@
 ﻿using Elysian.Application.Exceptions;
 using Elysian.Application.Features.Financial.Models;
 using Elysian.Application.Interfaces;
-using Elysian.Domain.Constants;
 using Elysian.Domain.Security;
 using MediatR;
 
@@ -18,10 +17,12 @@ namespace Elysian.Application.Features.Financial.Queries
     {
         public async Task<GetBudgetTransactionsQueryResponse> Handle(GetBudgetTransactionsQuery request, CancellationToken cancellationToken)
         {
+            var userId = claimsPrincipalAccessor.UserId;
             var allTransactions = new List<TransactionModel>();
             var expiredAccessItems = new List<ExpiredAccessItem>();
-            var budget = await budgetService.GetBudgetAsync(claimsPrincipalAccessor.UserId, request.BudgetId);
-            var accessTokens = await accessTokenService.GetBudgetAccessTokensAsync(claimsPrincipalAccessor.UserId, budget.BudgetId);
+            var budget = await budgetService.GetBudgetAsync(userId, request.BudgetId)
+                ?? throw new NotFoundException("Budget", request.BudgetId);
+            var accessTokens = await accessTokenService.GetBudgetAccessTokensAsync(userId, budget.BudgetId);
             foreach (var accessToken in accessTokens)
             {
                 try
@@ -29,17 +30,17 @@ namespace Elysian.Application.Features.Financial.Queries
                     var transactions = await financialService.GetTransactionsAsync(accessToken.AccessToken, budget.StartDate, budget.EndDate);
                     allTransactions.AddRange(transactions);
                 }
-                catch (FinancialServiceException fex)
+                catch (FinancialServiceException fex) when (AccessItemLoader.IsLoginRequired(fex))
                 {
-                    if (string.Equals(fex.Error?.error_code, PlaidErrorCodes.ITEM_LOGIN_REQUIRED,
-                               StringComparison.InvariantCultureIgnoreCase))
-                    {
-                        var institution = await financialService.GetInstitutionAsync(accessToken.InstitutionId);
-                        expiredAccessItems.Add(new ExpiredAccessItem(accessToken.AccessToken, fex.Error.error_message, institution));
-                    }
+                    var institution = await AccessItemLoader.GetInstitutionAsync(financialService, accessToken.InstitutionId);
+                    expiredAccessItems.Add(AccessItemLoader.ExpiredFor(fex, accessToken.InstitutionAccessItemId, institution)!);
+                }
+                catch (FinancialServiceException)
+                {
+                    // A bank that's temporarily down shouldn't hide the others
                 }
             }
-            var transactionCategories = await categoryService.GetTransactionCategoriesAsync(claimsPrincipalAccessor.UserId, request.BudgetId);
+            var transactionCategories = await categoryService.GetTransactionCategoriesAsync(userId, request.BudgetId);
             var transactionCategoryData = from t in allTransactions
                                           join c in transactionCategories on t.transaction_id equals c.TransactionId into tmpC
                                           from c in tmpC.DefaultIfEmpty()

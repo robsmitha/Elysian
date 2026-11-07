@@ -31,31 +31,48 @@ namespace Elysian.Infrastructure.Services
             return await accessTokenService.SetAccessTokenAsync(userId, accessToken, item.ItemId, item.InstitutionId);
         }
 
+        // Plaid's page size limit for /transactions/get, and a ceiling so a runaway date range can't loop forever
+        internal const int TransactionPageSize = 500;
+        internal const int MaxTransactionsPerItem = 10_000;
+
         public async Task<List<TransactionModel>> GetTransactionsAsync(string accessToken, DateTime startDate, DateTime endDate)
         {
-            // get api response from plaid
-            var response = await PostAsync<TransactionResponse>("transactions/get", new
+            // /transactions/get returns one page at a time (100 by default), so read pages until total_transactions
+            var pages = new List<TransactionResponse.Transaction>();
+            List<Account>? plaidAccounts = null;
+            int total;
+            do
             {
-                client_id = _plaidSettings.ClientId,
-                secret = _plaidSettings.Secret,
-                access_token = accessToken,
-                start_date = startDate.ToString("yyyy-MM-dd"),
-                end_date = endDate.ToString("yyyy-MM-dd")
-            });
+                var page = await PostAsync<TransactionResponse>("transactions/get", new
+                {
+                    client_id = _plaidSettings.ClientId,
+                    secret = _plaidSettings.Secret,
+                    access_token = accessToken,
+                    start_date = startDate.ToString("yyyy-MM-dd"),
+                    end_date = endDate.ToString("yyyy-MM-dd"),
+                    options = new { count = TransactionPageSize, offset = pages.Count }
+                });
 
-            if(response?.accounts.Any() != true)
+                plaidAccounts ??= page?.accounts;
+                var batch = page?.transactions ?? [];
+                pages.AddRange(batch);
+                total = page?.total_transactions ?? 0;
+
+                if (batch.Count == 0)
+                {
+                    break;
+                }
+            } while (pages.Count < total && pages.Count < MaxTransactionsPerItem);
+
+            if (plaidAccounts?.Any() != true)
             {
-                throw new FinancialServiceException($"{nameof(response.accounts)} cannot be null or empty.");
+                // A bank with no shared accounts has no transactions to show
+                return [];
             }
 
-            if(response?.transactions == null)
-            {
-                throw new FinancialServiceException($"{nameof(response.transactions)} cannot be null.");
-            }
-
-            // join accounts and transactions
-            var accounts = mapper.Map<List<AccountModel>>(response.accounts);
-            var transactions = mapper.Map<List<TransactionModel>>(response.transactions);
+            // A transaction can shift pages if Plaid adds one mid-read, so keep each id once
+            var accounts = mapper.Map<List<AccountModel>>(plaidAccounts);
+            var transactions = mapper.Map<List<TransactionModel>>(pages.DistinctBy(t => t.transaction_id).ToList());
          
             var results = transactions.Join(
                 accounts,
@@ -117,13 +134,13 @@ namespace Elysian.Infrastructure.Services
 
         public async Task<string> RefreshTransactionsAsync(string accessToken)
         {
-            var response = await PostAsync<dynamic>("transactions/refresh", new
+            var response = await PostAsync<RequestIdResponse>("transactions/refresh", new
             {
                 client_id = _plaidSettings.ClientId,
                 access_token = accessToken,
                 secret = _plaidSettings.Secret
             });
-            return response.request_id as string;
+            return response?.request_id;
         }
 
         public async Task<ItemModel> GetItemAsync(string accessToken)
@@ -140,14 +157,14 @@ namespace Elysian.Infrastructure.Services
 
         public async Task<string> RemoveItemAsync(string accessToken)
         {
-            var response = await PostAsync<dynamic>("item/remove", new
+            var response = await PostAsync<RequestIdResponse>("item/remove", new
             {
                 client_id = _plaidSettings.ClientId,
                 secret = _plaidSettings.Secret,
                 access_token = accessToken
             });
 
-            return response.request_id as string;
+            return response?.request_id;
         }
 
         public async Task<InstitutionModel> GetInstitutionAsync(string institutionId)
@@ -157,7 +174,9 @@ namespace Elysian.Infrastructure.Services
                 client_id = _plaidSettings.ClientId,
                 secret = _plaidSettings.Secret,
                 institution_id = institutionId,
-                country_codes = new [] { "US" }
+                country_codes = new [] { "US" },
+                // Adds the bank's logo and brand color for display
+                options = new { include_optional_metadata = true }
             });
             return mapper.Map<InstitutionModel>(response.institution);
         }
@@ -185,28 +204,42 @@ namespace Elysian.Infrastructure.Services
             return accounts;
         }
 
-        private async Task<T> PostAsync<T>(string endpoint, dynamic data)
+        // Pin Plaid's API version so a change to Plaid's account default can't change response shapes under us
+        internal const string PlaidVersion = "2020-09-14";
+
+        private async Task<T> PostAsync<T>(string endpoint, object data)
         {
-            try
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
             {
-                var content = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json");
+                Content = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json")
+            };
+            request.Headers.Add("Plaid-Version", PlaidVersion);
 
-                var client = httpClientFactory.CreateClient("PlaidClient");
-                var response = await client.PostAsync(endpoint, content);
-                var result = await response.Content.ReadAsStringAsync();
-                var json = JsonConvert.SerializeObject(result);
-                if (!response.IsSuccessStatusCode)
+            var client = httpClientFactory.CreateClient("PlaidClient");
+            using var response = await client.SendAsync(request);
+            var result = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                Error? error = null;
+                try
                 {
-                    var error = JsonConvert.DeserializeObject<Error>(result);
-                    throw new FinancialServiceException(error);
+                    error = JsonConvert.DeserializeObject<Error>(result);
                 }
+                catch (JsonException)
+                {
+                    // Not Plaid's JSON error (a gateway page, for example); fall back to the status code below
+                }
+                logger.LogWarning("Plaid {Endpoint} failed: {Status} {ErrorType}/{ErrorCode} ({RequestId})",
+                    endpoint, (int)response.StatusCode, error?.error_type, error?.error_code, error?.request_id);
+                throw new FinancialServiceException(error, $"Plaid {endpoint} returned {(int)response.StatusCode}.");
+            }
 
-                return JsonConvert.DeserializeObject<T>(result);
-            }
-            catch (HttpRequestException)
-            {
-                throw;
-            }
+            return JsonConvert.DeserializeObject<T>(result)!;
+        }
+
+        private sealed class RequestIdResponse
+        {
+            public string? request_id { get; set; }
         }
     }
 }

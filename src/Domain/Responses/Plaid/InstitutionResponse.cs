@@ -19,6 +19,9 @@ namespace Elysian.Domain.Responses.Plaid
             public bool oauth { get; set; }
             public List<string> products { get; set; }
             public List<object> routing_numbers { get; set; }
+            // Only sent when the request asks for options.include_optional_metadata
+            public string? logo { get; set; }
+            public string? primary_color { get; set; }
         }
     }
 }
