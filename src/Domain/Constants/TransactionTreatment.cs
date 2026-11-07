@@ -58,3 +58,15 @@ namespace Elysian.Domain.Constants
         In
     }
 }
+
+namespace Elysian.Domain.Constants
+{
+    public enum PayFrequency
+    {
+        Weekly,
+        Biweekly,
+        /// <summary>Twice a month (the 15th and the last day)</summary>
+        Semimonthly,
+        Monthly
+    }
+}

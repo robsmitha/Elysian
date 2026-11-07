@@ -103,6 +103,22 @@ namespace Elysian.Infrastructure.Services
                         line.FinancialCategoryId = targetId;
                     }
                 }
+
+                // Monthly targets: same idea, month by month
+                var targets = await context.BudgetTargets.Where(t => t.CategoryId == categoryId).ToListAsync();
+                foreach (var t in targets)
+                {
+                    var existing = await context.BudgetTargets.FirstOrDefaultAsync(b => b.BudgetMonthId == t.BudgetMonthId && b.CategoryId == targetId);
+                    if (existing != null)
+                    {
+                        existing.Amount += t.Amount;
+                        context.BudgetTargets.Remove(t);
+                    }
+                    else
+                    {
+                        t.CategoryId = targetId;
+                    }
+                }
             }
 
             category.IsArchived = true;

@@ -26,10 +26,14 @@ namespace Elysian.Infrastructure.Context
         public DbSet<BudgetAccessItem> BudgetAccessItems { get; set; }
         public DbSet<BudgetCategory> BudgetCategories { get; set; }
         public DbSet<BudgetExcludedTransaction> BudgetExcludedTransactions { get; set; }
+        public DbSet<BudgetMonth> BudgetMonths { get; set; }
+        public DbSet<BudgetTarget> BudgetTargets { get; set; }
         public DbSet<CategoryRule> CategoryRules { get; set; }
         public DbSet<FinancialAccount> FinancialAccounts { get; set; }
         public DbSet<FinancialCategory> FinancialCategories { get; set; }
         public DbSet<IncomeSource> IncomeSources { get; set; }
+        public DbSet<IncomeStream> IncomeStreams { get; set; }
+        public DbSet<NotificationSettings> NotificationSettings { get; set; }
         public DbSet<IncomePayment> IncomePayments { get; set; }
         public DbSet<InstagramPost> InstagramPosts { get; set; }
         public DbSet<InstitutionAccessItem> InstitutionAccessItems { get; set; }
