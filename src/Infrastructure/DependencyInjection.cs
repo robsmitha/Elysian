@@ -1,4 +1,5 @@
-﻿using Azure.Core;
+﻿using Elysian.Infrastructure.Assistant;
+using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using CapitolSharp.Congress;
@@ -133,6 +134,22 @@ namespace Elysian.Infrastructure
             services.AddTransient<IGoalService, GoalService>();
             services.AddTransient<PlaidWebhookVerifier>();
             services.AddTransient<IPlaidWebhookService, PlaidWebhookService>();
+            return services;
+        }
+
+        /// <summary>The budget assistant (docs/assistant-plan.md). Needs AddFinancialFeatures. Assistant__Provider picks Claude or the offline fake.</summary>
+        public static IServiceCollection AddAssistantFeatures(this IServiceCollection services, IConfiguration configuration)
+        {
+            services.Configure<AssistantSettings>(configuration.GetSection("Assistant"));
+            services.Configure<AnthropicSettings>(configuration.GetSection("Anthropic"));
+            services.TryAddSingleton(TimeProvider.System);
+            services.AddSingleton<IAssistantModel>(serviceProvider =>
+                serviceProvider.GetRequiredService<IOptions<AssistantSettings>>().Value.Provider == "anthropic"
+                    ? ActivatorUtilities.CreateInstance<AnthropicAssistantModel>(serviceProvider)
+                    : new FakeAssistantModel());
+            services.AddTransient<AssistantLimiter>();
+            services.AddTransient<AssistantTools>();
+            services.AddTransient<IAssistantService, AssistantService>();
             return services;
         }
 

@@ -20,6 +20,7 @@ namespace Elysian.Infrastructure.Context
 
         }
 
+        public DbSet<AssistantUsage> AssistantUsages { get; set; }
         public DbSet<BankTransaction> BankTransactions { get; set; }
         public DbSet<BillTracking> BillTrackings { get; set; }
         public DbSet<Budget> Budgets { get; set; }
