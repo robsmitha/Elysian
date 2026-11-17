@@ -24,8 +24,8 @@ namespace Elysian.Application.Features.GoogleCalendar.Commands
     }
 
     public class CheckGoogleCalendarHealthCommandHandler(IGoogleTokenStore tokenStore, IGoogleAccessTokenProvider tokenProvider,
-        IGoogleCalendarService calendarService, IEmailService emailService, IOptions<BookingSettings> bookingOptions,
-        IOptions<ResendSettings> resendOptions, TimeProvider timeProvider, ILogger<CheckGoogleCalendarHealthCommandHandler> logger)
+        IGoogleCalendarService calendarService, IEmailService emailService, ITenantSettings<BookingSettings> bookingOptions,
+        ITenantSettings<ResendSettings> resendOptions, TimeProvider timeProvider, ILogger<CheckGoogleCalendarHealthCommandHandler> logger)
         : IRequestHandler<CheckGoogleCalendarHealthCommand, GoogleCalendarHealthResult>
     {
         public async Task<GoogleCalendarHealthResult> Handle(CheckGoogleCalendarHealthCommand request, CancellationToken cancellationToken)

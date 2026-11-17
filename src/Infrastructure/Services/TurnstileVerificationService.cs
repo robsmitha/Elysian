@@ -10,21 +10,23 @@ namespace Elysian.Infrastructure.Services
     /// <summary>
     /// Verifies Cloudflare Turnstile tokens with the siteverify endpoint
     /// </summary>
-    public class TurnstileVerificationService(HttpClient httpClient, IOptions<TurnstileSettings> options,
+    public class TurnstileVerificationService(HttpClient httpClient, IOptions<TurnstileSettings> options, ITenantSecretStore tenantSecretStore,
         ILogger<TurnstileVerificationService> logger) : IHumanVerificationService
     {
         private const string SiteVerifyUrl = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
         public async Task<bool> VerifyAsync(string token, string? remoteIp, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrEmpty(options.Value.SecretKey))
+            // A tenant with its own Turnstile widget has its own secret; otherwise the host's is used
+            var secretKey = await tenantSecretStore.GetAsync(TenantSecretNames.TurnstileSecretKey, cancellationToken) ?? options.Value.SecretKey;
+            if (string.IsNullOrEmpty(secretKey))
             {
                 throw new InvalidOperationException($"{TurnstileSettings.SectionName}:{nameof(TurnstileSettings.SecretKey)} is not configured.");
             }
 
             var form = new Dictionary<string, string>
             {
-                ["secret"] = options.Value.SecretKey,
+                ["secret"] = secretKey,
                 ["response"] = token,
             };
             if (!string.IsNullOrEmpty(remoteIp))

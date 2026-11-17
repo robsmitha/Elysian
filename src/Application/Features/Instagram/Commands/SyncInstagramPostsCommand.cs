@@ -36,7 +36,7 @@ namespace Elysian.Application.Features.Instagram.Commands
 
     public class SyncInstagramPostsCommandHandler(ElysianContext context, IInstagramService instagramService,
         IInstagramTokenStore tokenStore, IPhotoStorage photoStorage, IPhotoProcessor photoProcessor, IMemoryCache cache,
-        IOptions<InstagramSettings> options, IMultiTenantContextAccessor<ElysianTenantInfo> multiTenantContextAccessor,
+        ITenantSettings<InstagramSettings> options, IMultiTenantContextAccessor<ElysianTenantInfo> multiTenantContextAccessor,
         TimeProvider timeProvider, ILogger<SyncInstagramPostsCommandHandler> logger)
         : IRequestHandler<SyncInstagramPostsCommand, InstagramSyncResult>
     {

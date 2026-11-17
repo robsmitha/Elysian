@@ -7,6 +7,7 @@ namespace Elysian.Infrastructure.Settings
     {
         public const string SectionName = "Resend";
 
+        [PlatformOnly]
         public string ApiKey { get; set; } = string.Empty;
 
         /// <summary>

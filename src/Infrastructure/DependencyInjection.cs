@@ -1,6 +1,7 @@
 ﻿using Elysian.Infrastructure.Assistant;
 using Azure.Core;
 using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
 using Azure.Storage.Blobs;
 using CapitolSharp.Congress;
 using Elysian.Application.Features.Booking;
@@ -18,6 +19,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Resend;
@@ -32,10 +34,33 @@ namespace Elysian.Infrastructure
             services.AddSingleton<IClaimsPrincipalAccessor, ClaimsPrincipalAccessor>();
             services.AddScoped<IIdentityService, IdentityService>();
 
+            // Which modules each tenant has. Nothing is refused unless Modules:Enforce is on.
+            services.Configure<ModuleSettings>(configuration.GetSection(ModuleSettings.SectionName));
+            services.AddMemoryCache();
+            services.AddScoped<ITenantModuleService, TenantModuleService>();
+
+            // Settings and secrets that differ per tenant, falling back to this host's configuration
+            services.Configure<TenantSettingsOptions>(configuration.GetSection(TenantSettingsOptions.SectionName));
+            services.AddScoped(typeof(ITenantSettings<>), typeof(TenantSettingsReader<>));
+            services.Configure<TenantSecretOptions>(configuration.GetSection(TenantSecretOptions.SectionName));
+            var tenantSecretVaultUri = configuration[$"{TenantSecretOptions.SectionName}:{nameof(TenantSecretOptions.VaultUri)}"];
+            if (Uri.TryCreate(tenantSecretVaultUri, UriKind.Absolute, out var vaultUri))
+            {
+                services.AddSingleton(new SecretClient(vaultUri, new DefaultAzureCredential()));
+                services.AddScoped<ITenantSecretStore, KeyVaultTenantSecretStore>();
+            }
+            else
+            {
+                services.AddScoped<ITenantSecretStore>(serviceProvider => new ConfigurationTenantSecretStore(configuration,
+                    serviceProvider.GetRequiredService<IMultiTenantContextAccessor<ElysianTenantInfo>>()));
+            }
+
             services.AddDbContext<ElysianContext>((serviceProvider, options) =>
             {
                 options.UseSqlServer(configuration.GetConnectionString("DefaultConnection"));
                 options.AddInterceptors(serviceProvider.GetServices<ISaveChangesInterceptor>());
+                // Declares the request's tenant to SQL Server for row-level security
+                options.AddInterceptors(new TenantSessionContextInterceptor());
             });
 
             services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
@@ -47,6 +72,22 @@ namespace Elysian.Infrastructure
                 .WithStrategy<TStrategy>(ServiceLifetime.Singleton, ["___tenant___"]);
 
             services.AddSingleton(TimeProvider.System);
+
+            // Platform data read before the request's tenant is known: who at the edge may act for which tenant
+            services.AddDbContext<PlatformContext>(options => options
+                .UseSqlServer(configuration.GetConnectionString("DefaultConnection"))
+                .AddInterceptors(new TenantSessionContextInterceptor(bypass: true)));
+            services.Configure<EdgeSettings>(configuration.GetSection(EdgeSettings.SectionName));
+            services.AddScoped<IEdgeClientValidator, EdgeClientValidator>();
+
+            // Scheduled work, queued once per tenant
+            services.AddSingleton<ITenantJobQueue>(new AzureTenantJobQueue(configuration));
+
+            // Who is signed in, and where their roles come from. Hosts serving one site keep the default.
+            services.Configure<AuthSettings>(configuration.GetSection(AuthSettings.SectionName));
+            services.AddSingleton<ITokenValidator>(serviceProvider => new JwtTokenValidator(
+                serviceProvider.GetRequiredService<IOptions<AuthSettings>>(),
+                serviceProvider.GetRequiredService<ILogger<JwtTokenValidator>>()));
 
             return services;
         }
@@ -220,6 +261,8 @@ namespace Elysian.Infrastructure
             services.Configure<TurnstileSettings>(configuration.GetSection(TurnstileSettings.SectionName));
 
             AddResendEmail(services, configuration);
+            services.TryAddScoped<ITenantSecretStore>(serviceProvider => new ConfigurationTenantSecretStore(configuration,
+                serviceProvider.GetRequiredService<IMultiTenantContextAccessor<ElysianTenantInfo>>()));
             services.AddHttpClient<IHumanVerificationService, TurnstileVerificationService>();
 
             return services;
@@ -274,6 +317,8 @@ namespace Elysian.Infrastructure
             }
 
             services.Configure<ResendSettings>(configuration.GetSection(ResendSettings.SectionName));
+            // AddElysianFeatures replaces this with the per-tenant reader; without it the host's values are used
+            services.TryAddScoped(typeof(ITenantSettings<>), typeof(HostTenantSettings<>));
             services.AddResend(options => options.ApiToken = configuration[$"{ResendSettings.SectionName}:{nameof(ResendSettings.ApiKey)}"]!);
             services.TryAddTransient<IEmailService, ResendEmailService>();
         }
@@ -317,8 +362,6 @@ namespace Elysian.Infrastructure
             services.Configure<GoogleCalendarSettings>(configuration.GetSection(GoogleCalendarSettings.SectionName));
 
             services.TryAddSingleton(TimeProvider.System);
-            services.AddSingleton(serviceProvider =>
-                BookingRules.FromSettings(serviceProvider.GetRequiredService<IOptions<BookingSettings>>().Value));
 
             services.AddScoped<IGoogleTokenStore, DbGoogleTokenStore>();
             services.AddSingleton<IGoogleOAuthClient, GoogleOAuthClient>();

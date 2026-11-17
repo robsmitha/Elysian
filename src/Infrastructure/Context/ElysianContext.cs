@@ -37,6 +37,7 @@ namespace Elysian.Infrastructure.Context
         public DbSet<IncomeStream> IncomeStreams { get; set; }
         public DbSet<NotificationSettings> NotificationSettings { get; set; }
         public DbSet<Debt> Debts { get; set; }
+        public DbSet<EdgeClient> EdgeClients { get; set; }
         public DbSet<DebtPlan> DebtPlans { get; set; }
         public DbSet<SavingsGoal> SavingsGoals { get; set; }
         public DbSet<GoalContribution> GoalContributions { get; set; }
@@ -60,6 +61,10 @@ namespace Elysian.Infrastructure.Context
         public DbSet<ProductType> ProductTypes { get; set; }
         public DbSet<Story> Stories { get; set; }
         public DbSet<SyncRun> SyncRuns { get; set; }
+        public DbSet<TenantInvite> TenantInvites { get; set; }
+        public DbSet<TenantMembership> TenantMemberships { get; set; }
+        public DbSet<TenantModule> TenantModules { get; set; }
+        public DbSet<TenantSetting> TenantSettings { get; set; }
         public DbSet<TransactionCategory> TransactionCategories { get; set; }
         public DbSet<TransactionSplit> TransactionSplits { get; set; }
         public DbSet<UnitType> UnitTypes { get; set; }
@@ -94,7 +99,9 @@ namespace Elysian.Infrastructure.Context
             };
 
             var builder = new DbContextOptionsBuilder<ElysianContext>()
-                .UseSqlServer("Server=(localdb)\\mssqllocaldb;Database=Elysian;Trusted_Connection=True;MultipleActiveResultSets=true");
+                .UseSqlServer("Server=(localdb)\\mssqllocaldb;Database=Elysian;Trusted_Connection=True;MultipleActiveResultSets=true")
+                // Migrations are platform work: they must be able to touch every tenant's rows once tables are strict
+                .AddInterceptors(new TenantSessionContextInterceptor(bypass: true));
             return new (
                 multiTenantContextAccessor: serviceProvider.GetRequiredService<IMultiTenantContextAccessor>(),
                 options: builder.Options);

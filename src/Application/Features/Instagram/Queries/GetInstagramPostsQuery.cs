@@ -18,7 +18,7 @@ namespace Elysian.Application.Features.Instagram.Queries
     public record GetInstagramPostsQuery : IRequest<List<InstagramPostModel>>;
 
     public class GetInstagramPostsQueryHandler(ElysianContext context, IPhotoStorage photoStorage, IMemoryCache cache,
-        IOptions<InstagramSettings> options, IMultiTenantContextAccessor<ElysianTenantInfo> multiTenantContextAccessor)
+        ITenantSettings<InstagramSettings> options, IMultiTenantContextAccessor<ElysianTenantInfo> multiTenantContextAccessor)
         : IRequestHandler<GetInstagramPostsQuery, List<InstagramPostModel>>
     {
         /// <summary>

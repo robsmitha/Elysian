@@ -102,7 +102,7 @@ namespace Elysian.Application.Features.Booking.Commands
 
     public class CreateBookingCommandHandler(ElysianContext context, BookingAvailabilityService availabilityService,
         IGoogleCalendarService calendarService, IHumanVerificationService humanVerificationService, IEmailService emailService,
-        IOptions<BookingSettings> bookingOptions, IOptions<ResendSettings> resendOptions,
+        ITenantSettings<BookingSettings> bookingOptions, ITenantSettings<ResendSettings> resendOptions,
         IMultiTenantContextAccessor<ElysianTenantInfo> multiTenantContextAccessor, ILogger<CreateBookingCommandHandler> logger)
         : IRequestHandler<CreateBookingCommand, CreateBookingResult>
     {

@@ -7,13 +7,15 @@ using Elysian.Domain.Security;
 using Elysian.Infrastructure.Context;
 using Finbuckle.MultiTenant.Abstractions;
 using Microsoft.EntityFrameworkCore;
+using Elysian.Infrastructure.Settings;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System.Security.Claims;
 
 namespace Elysian.Infrastructure.Identity
 {
-    public class IdentityService(ElysianContext context, IMultiTenantContextAccessor<ElysianTenantInfo> multiTenantContextAccessor,
-        TimeProvider timeProvider, ILogger<IdentityService> logger) : IIdentityService
+    public partial class IdentityService(ElysianContext context, IMultiTenantContextAccessor<ElysianTenantInfo> multiTenantContextAccessor,
+        TimeProvider timeProvider, ILogger<IdentityService> logger, IOptions<AuthSettings>? authOptions = null) : IIdentityService
     {
         private const string IdentityProviderAad = "aad";
 
@@ -33,6 +35,11 @@ namespace Elysian.Infrastructure.Identity
         {
             var merchant = await context.Merchants.FirstOrDefaultAsync(m => m.MerchantIdentifier == tenantInfo.Identifier)
                 ?? throw new NotFoundException(tenantInfo.Identifier ?? "Merchant not found");
+
+            if (authOptions?.Value.RoleSource == RoleSource.Membership)
+            {
+                return await GetOrCreateFromMembershipAsync(principal);
+            }
 
             var externalUserId = principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
@@ -122,19 +129,7 @@ namespace Elysian.Infrastructure.Identity
 
             var previousId = user.ExternalUserId;
 
-            // Loaded and changed one by one (rather than ExecuteUpdate) so it runs in the same transaction as the user
-            foreach (var budget in await context.Budgets.Where(b => b.UserId == previousId).ToListAsync())
-            {
-                budget.UserId = externalUserId;
-            }
-            foreach (var bill in await context.BillTrackings.Where(b => b.UserId == previousId).ToListAsync())
-            {
-                bill.UserId = externalUserId;
-            }
-            foreach (var token in await context.OAuthTokens.Where(t => t.UserId == previousId && t.OAuthProvider == OAuthProviders.GitHub).ToListAsync())
-            {
-                token.UserId = externalUserId;
-            }
+            await MoveUserDataAsync(previousId, externalUserId);
 
             user.ExternalUserId = externalUserId;
             user.Email ??= email;

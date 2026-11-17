@@ -8,11 +8,13 @@ namespace Elysian.Infrastructure.Settings
     {
         public const string SectionName = "GoogleCalendar";
 
+        [PlatformOnly]
         public string ClientId { get; set; } = string.Empty;
 
         /// <summary>
         /// Secret: never log it
         /// </summary>
+        [PlatformOnly]
         public string ClientSecret { get; set; } = string.Empty;
 
         /// <summary>

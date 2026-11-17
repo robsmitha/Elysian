@@ -1,13 +1,20 @@
 using Elysian.Application.Interfaces;
+using Elysian.Infrastructure.Settings;
 
 namespace Elysian.Application.Features.Booking
 {
     /// <summary>
     /// Reads the calendar and runs <see cref="SlotCalculator"/>, so showing times and accepting a booking agree exactly
     /// </summary>
-    public class BookingAvailabilityService(IGoogleCalendarService calendarService, BookingRules rules, TimeProvider timeProvider)
+    public class BookingAvailabilityService(IGoogleCalendarService calendarService, ITenantSettings<BookingSettings> settings,
+        TimeProvider timeProvider)
     {
-        public BookingRules Rules => rules;
+        private BookingRules? parsedRules;
+
+        /// <summary>
+        /// The current tenant's rules, parsed on first use so building this service never reads settings
+        /// </summary>
+        public BookingRules Rules => parsedRules ??= BookingRules.FromSettings(settings.Value);
 
         /// <summary>
         /// Start times per photographer date between <paramref name="from"/> and <paramref name="to"/> (inclusive).
@@ -17,6 +24,7 @@ namespace Elysian.Application.Features.Booking
             CancellationToken cancellationToken)
         {
             var now = timeProvider.GetUtcNow();
+            var rules = Rules;
             var first = from > rules.FirstBookableDate(now) ? from : rules.FirstBookableDate(now);
             var last = to < rules.LastBookableDate(now) ? to : rules.LastBookableDate(now);
             if (first > last)

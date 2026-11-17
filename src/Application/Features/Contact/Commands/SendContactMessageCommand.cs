@@ -80,7 +80,7 @@ namespace Elysian.Application.Features.Contact.Commands
     }
 
     public class SendContactMessageCommandHandler(IHumanVerificationService humanVerificationService, IEmailService emailService,
-        IOptions<ResendSettings> resendSettings, ILogger<SendContactMessageCommandHandler> logger)
+        ITenantSettings<ResendSettings> resendSettings, ILogger<SendContactMessageCommandHandler> logger)
         : IRequestHandler<SendContactMessageCommand, bool>
     {
         public async Task<bool> Handle(SendContactMessageCommand request, CancellationToken cancellationToken)
