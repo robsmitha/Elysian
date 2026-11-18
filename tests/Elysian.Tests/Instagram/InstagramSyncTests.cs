@@ -124,7 +124,7 @@ namespace Elysian.Tests.Instagram
 
         private Task<InstagramSyncResult> Sync() =>
             new SyncInstagramPostsCommandHandler(host.Context, instagram.Object, tokens.Object, storage.Object, processor.Object,
-                    cache, Options.Create(new InstagramSettings()), host.TenantAccessor, TimeProvider.System,
+                    cache, new Elysian.Infrastructure.Services.FixedTenantSettings<InstagramSettings>(new InstagramSettings()), host.TenantAccessor, TimeProvider.System,
                     NullLogger<SyncInstagramPostsCommandHandler>.Instance)
                 .Handle(new SyncInstagramPostsCommand(), default);
 

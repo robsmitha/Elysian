@@ -15,6 +15,26 @@ namespace Elysian.Application.Behaviors
     {
         public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
         {
+            // Signed in, but not necessarily a member of any tenant
+            if (request.GetType().GetCustomAttribute<RequiresSignInAttribute>() != null && !claimsPrincipalAccessor.IsAuthenticated)
+            {
+                throw new UnauthorizedAccessException();
+            }
+
+            // The people who run the platform, acting outside any tenant
+            if (request.GetType().GetCustomAttribute<RequiresPlatformAdminAttribute>() != null)
+            {
+                if (!claimsPrincipalAccessor.IsAuthenticated)
+                {
+                    throw new UnauthorizedAccessException();
+                }
+
+                if (!identityService.IsPlatformAdmin(claimsPrincipalAccessor.Principal))
+                {
+                    throw new ForbiddenAccessException();
+                }
+            }
+
             var authorizeAttributes = request.GetType().GetCustomAttributes<AuthorizeAttribute>();
             if (authorizeAttributes.Any())
             {

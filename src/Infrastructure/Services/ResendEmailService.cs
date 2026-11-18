@@ -5,7 +5,7 @@ using Resend;
 
 namespace Elysian.Infrastructure.Services
 {
-    public class ResendEmailService(IResend resend, IOptions<ResendSettings> options) : IEmailService
+    public class ResendEmailService(IResend resend, ITenantSettings<ResendSettings> options) : IEmailService
     {
         public async Task SendAsync(OutgoingEmail email, CancellationToken cancellationToken = default)
         {

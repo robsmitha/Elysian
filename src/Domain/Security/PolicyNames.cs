@@ -33,10 +33,17 @@ namespace Elysian.Domain.Security
         public const string UserWrite = "user.write";
         public const string UserDelete = "user.delete";
 
+        public const string MemberRead = "member.read";
+        public const string MemberWrite = "member.write";
+
         private static readonly Dictionary<string, (int Level, string[] Policies)> roleHierarchy = new(StringComparer.OrdinalIgnoreCase)
         {
             { RoleNames.Authenticated, (1,[CodeRead, CodeWrite, CodeDelete]) },
             { RoleNames.MerchantAdmin, (100,[ProductRead, ProductWrite, ProductDelete, PhotoRead, PhotoWrite, PhotoDelete, BudgetRead, BudgetWrite, BudgetDelete, IncomeRead, IncomeWrite, IncomeDelete]) },
+            // Membership roles. An owner sits just above merchantAdmin, so it gets everything that role has
+            // plus managing who else belongs to the site.
+            { RoleNames.Editor, (50,[ProductRead, ProductWrite, PhotoRead, PhotoWrite, PhotoDelete]) },
+            { RoleNames.Owner, (110,[MemberRead, MemberWrite]) },
             { RoleNames.SystemAdmin, (int.MaxValue,[UserRead, UserWrite, UserDelete]) }
         };
 

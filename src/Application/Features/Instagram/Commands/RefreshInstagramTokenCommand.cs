@@ -24,7 +24,7 @@ namespace Elysian.Application.Features.Instagram.Commands
     }
 
     public class RefreshInstagramTokenCommandHandler(IInstagramService instagramService, IInstagramTokenStore tokenStore,
-        IOptions<InstagramSettings> options, TimeProvider timeProvider, ILogger<RefreshInstagramTokenCommandHandler> logger)
+        ITenantSettings<InstagramSettings> options, TimeProvider timeProvider, ILogger<RefreshInstagramTokenCommandHandler> logger)
         : IRequestHandler<RefreshInstagramTokenCommand, InstagramTokenRefreshResult>
     {
         /// <summary>

@@ -7,6 +7,7 @@ namespace Elysian.Infrastructure.Settings
     {
         public const string SectionName = "Turnstile";
 
+        [PlatformOnly]
         public string SecretKey { get; set; } = string.Empty;
     }
 }

@@ -32,7 +32,10 @@ namespace Elysian.Domain.Data
 
                 builder.Property(e => e.Email).IsRequired(false);
 
-                builder.HasIndex(e => e.ExternalUserId).IsUnique()
+                builder.IsMultiTenant();
+
+                // Per tenant: the same person can belong to more than one site
+                builder.HasIndex(["ExternalUserId", "TenantId"]).IsUnique()
                     .HasDatabaseName("AK_User_ExternalUserId");
 
                 builder.Property(e => e.IdentityProvider).IsRequired();
@@ -42,7 +45,7 @@ namespace Elysian.Domain.Data
                     ownedNavigationBuilder.ToJson();
                 });
 
-                builder.ToTable("User").IsMultiTenant();
+                builder.ToTable("User");
             }
         }
     }

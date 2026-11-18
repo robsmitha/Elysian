@@ -14,5 +14,10 @@ namespace Elysian.Application.Interfaces
         Task<bool> IsInRoleAsync(User user, string roleName);
         Task<bool> AuthorizeAsync(User user, string policyName);
         Task<User> GetOrCreateAsync(ClaimsPrincipal principal);
+
+        /// <summary>
+        /// Whether this person runs the platform. Needs no tenant.
+        /// </summary>
+        bool IsPlatformAdmin(ClaimsPrincipal? principal);
     }
 }

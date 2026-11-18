@@ -11,5 +11,9 @@ namespace Elysian.Domain.Security
         public const string SystemAdmin = "systemAdmin";
         public const string MerchantAdmin = "merchantAdmin";
         public const string Authenticated = "authenticated";
+
+        // Roles a tenant membership carries
+        public const string Owner = "owner";
+        public const string Editor = "editor";
     }
 }

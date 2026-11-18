@@ -15,7 +15,7 @@ namespace Elysian.Infrastructure.Services
     /// <summary>
     /// Google.Apis.Calendar.v3 against GoogleCalendar:CalendarId. A rejected access token is refreshed and retried once.
     /// </summary>
-    public class GoogleCalendarService(IGoogleAccessTokenProvider tokenProvider, IOptions<GoogleCalendarSettings> options) : IGoogleCalendarService
+    public class GoogleCalendarService(IGoogleAccessTokenProvider tokenProvider, ITenantSettings<GoogleCalendarSettings> options) : IGoogleCalendarService
     {
         private const string ApplicationName = "Elysian";
 
