@@ -18,7 +18,8 @@ namespace Elysian.Tests
 
         private readonly ServiceProvider serviceProvider;
 
-        public TestHost(ClaimsPrincipal? principal = null)
+        /// <param name="interceptor">An extra interceptor, e.g. to make a save fail the way the database would</param>
+        public TestHost(ClaimsPrincipal? principal = null, Microsoft.EntityFrameworkCore.Diagnostics.IInterceptor? interceptor = null)
         {
             var services = new ServiceCollection();
             services.AddMultiTenant<ElysianTenantInfo>().WithInMemoryStore();
@@ -30,15 +31,30 @@ namespace Elysian.Tests
             ClaimsPrincipalAccessor = new ClaimsPrincipalAccessor { Principal = principal ?? Principal("actor-swa-id", "admin@example.com") };
             TenantAccessor = serviceProvider.GetRequiredService<IMultiTenantContextAccessor<ElysianTenantInfo>>();
 
-            var options = new DbContextOptionsBuilder<ElysianContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                .AddInterceptors(new AuditableEntityInterceptor(ClaimsPrincipalAccessor, TimeProvider.System))
-                .Options;
+            var builder = new DbContextOptionsBuilder<ElysianContext>()
+                .UseInMemoryDatabase(DatabaseName)
+                .AddInterceptors(new AuditableEntityInterceptor(ClaimsPrincipalAccessor, TimeProvider.System));
+            if (interceptor != null)
+            {
+                builder.AddInterceptors(interceptor);
+            }
+            var options = builder.Options;
 
             Context = new ElysianContext(serviceProvider.GetRequiredService<IMultiTenantContextAccessor>(), options);
         }
 
         public ElysianContext Context { get; }
+
+        /// <summary>
+        /// The in-memory database behind <see cref="Context"/>
+        /// </summary>
+        public string DatabaseName { get; } = Guid.NewGuid().ToString();
+
+        /// <summary>
+        /// Another connection to the same database, as a second request would have
+        /// </summary>
+        public ElysianContext OtherContext() => new(serviceProvider.GetRequiredService<IMultiTenantContextAccessor>(),
+            new DbContextOptionsBuilder<ElysianContext>().UseInMemoryDatabase(DatabaseName).Options);
         public ClaimsPrincipalAccessor ClaimsPrincipalAccessor { get; }
         public IMultiTenantContextAccessor<ElysianTenantInfo> TenantAccessor { get; }
 
