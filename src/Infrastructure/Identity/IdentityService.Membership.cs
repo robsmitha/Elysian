@@ -102,7 +102,24 @@ namespace Elysian.Infrastructure.Identity
 
             if (context.ChangeTracker.HasChanges())
             {
-                await context.SaveChangesAsync();
+                try
+                {
+                    await context.SaveChangesAsync();
+                }
+                catch (DbUpdateException) when (firstAccess)
+                {
+                    // A page makes several requests at once, and on someone's first visit each of them tries to
+                    // create the person. The database lets one through; this one lost. Use the winner's row.
+                    context.ChangeTracker.Clear();
+                    var created = await context.Users.FirstOrDefaultAsync(u => u.ExternalUserId == subject);
+                    if (created == null)
+                    {
+                        // Not that race: something else stopped the save
+                        throw;
+                    }
+
+                    return created;
+                }
             }
 
             return user;
