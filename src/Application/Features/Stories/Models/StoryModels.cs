@@ -75,6 +75,11 @@ namespace Elysian.Application.Features.Stories.Models
         string? SeoDescription,
         List<PhotoModel> Photos);
 
+    /// <summary>
+    /// A token that opens one story's preview until <see cref="ExpiresAt"/>
+    /// </summary>
+    public record StoryPreviewLinkModel(string Token, DateTimeOffset ExpiresAt);
+
     public static class StoryModelMappings
     {
         /// <summary>
