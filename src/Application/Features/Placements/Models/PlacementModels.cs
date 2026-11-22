@@ -63,6 +63,8 @@ namespace Elysian.Application.Features.Placements.Models
         Busy,
         /// <summary>PlacementPublishing:Enabled is off</summary>
         Disabled,
+        /// <summary>The tenant has no placement slots to publish: no site manifest, and no catalog from the host</summary>
+        NoCatalog,
     }
 
     public sealed record PlacementPublishResult(PlacementPublishOutcome Outcome, int ChangedSlots = 0, int PurgedUrls = 0);

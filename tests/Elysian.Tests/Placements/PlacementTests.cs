@@ -130,7 +130,7 @@ namespace Elysian.Tests.Placements
             // No site-default yet: the banner has nothing
             Place("home-hero-1", explicitHero);
             await host.Context.SaveChangesAsync();
-            var resolved = await Resolver().ResolveAsync(default);
+            var resolved = await Resolver().ResolveAsync(catalog, default);
 
             Assert.Equal((explicitHero.PhotoId, PlacementSource.Explicit), Shown(resolved, "home-hero-1"));
             Assert.Equal((firstGallery.PhotoId, PlacementSource.Category), Shown(resolved, "portfolio-cover-weddings"));
@@ -139,7 +139,7 @@ namespace Elysian.Tests.Placements
             var fallback = AddPhoto("site");
             Place("site-default", fallback);
             await host.Context.SaveChangesAsync();
-            resolved = await Resolver().ResolveAsync(default);
+            resolved = await Resolver().ResolveAsync(catalog, default);
 
             Assert.Equal((fallback.PhotoId, PlacementSource.SiteDefault), Shown(resolved, "home-cta"));
         }
@@ -152,20 +152,20 @@ namespace Elysian.Tests.Placements
             await host.Context.SaveChangesAsync();
 
             string Fingerprint(IReadOnlyList<ResolvedSlot> slots) => slots.Single(s => s.Slot.Key == "home-hero-1").Fingerprint;
-            var first = Fingerprint(await Resolver().ResolveAsync(default));
+            var first = Fingerprint(await Resolver().ResolveAsync(catalog, default));
 
             photo.AltText = "New alt text";
             await host.Context.SaveChangesAsync();
-            Assert.Equal(first, Fingerprint(await Resolver().ResolveAsync(default)));
+            Assert.Equal(first, Fingerprint(await Resolver().ResolveAsync(catalog, default)));
 
             photo.FocusX = 0.2;
             await host.Context.SaveChangesAsync();
-            var moved = Fingerprint(await Resolver().ResolveAsync(default));
+            var moved = Fingerprint(await Resolver().ResolveAsync(catalog, default));
             Assert.NotEqual(first, moved);
 
             photo.Version = 2;
             await host.Context.SaveChangesAsync();
-            Assert.NotEqual(moved, Fingerprint(await Resolver().ResolveAsync(default)));
+            Assert.NotEqual(moved, Fingerprint(await Resolver().ResolveAsync(catalog, default)));
         }
 
         // ---- Publishing
@@ -247,6 +247,45 @@ namespace Elysian.Tests.Placements
             Assert.Empty(publish.Steps);
         }
 
+        [Fact]
+        public async Task A_tenant_with_no_catalog_publishes_nothing()
+        {
+            var publish = new PublishHarness(this) { HasCatalog = false };
+
+            var result = await publish.Handler().Handle(new PublishPlacementsCommand(Message()), default);
+
+            // Not even the lock: nothing is written, purged or queued
+            Assert.Equal(PlacementPublishOutcome.NoCatalog, result.Outcome);
+            Assert.Empty(publish.Steps);
+        }
+
+        [Fact]
+        public async Task A_slot_that_leaves_the_catalog_keeps_its_published_files()
+        {
+            var publish = new PublishHarness(this);
+            await publish.Handler().Handle(new PublishPlacementsCommand(Message()), default);
+            var before = publish.PublishedPaths.ToList();
+            Assert.Contains(before, p => p.Contains("home-cta-banner-photo1"));
+
+            // The same tenant, now with a catalog that no longer lists the banner
+            var smaller = PlacementCatalog.FromJson("""
+                {
+                  "recipeVersion": 1,
+                  "siteDefaultKey": "site-default",
+                  "slots": [
+                    { "key": "home-hero-1", "name": "home-hero-strip-photo1", "ratio": 0.75, "widths": [480, 720, 1080], "alt": "Hero" },
+                    { "key": "portfolio-cover-weddings", "name": "portfolio-cover-weddings-photo1", "ratio": 0.8, "widths": [400, 800], "alt": "Weddings", "fallbackCategory": "weddings" }
+                  ]
+                }
+                """);
+
+            var result = await publish.Handler(smaller).Handle(new PublishPlacementsCommand(Message() with { Force = true }), default);
+
+            Assert.Equal(PlacementPublishOutcome.Published, result.Outcome);
+            Assert.Equal(2, result.ChangedSlots);
+            Assert.Equal(before.Order(), publish.PublishedPaths.Order());
+        }
+
         // ---- Registration
 
         [Fact]
@@ -285,7 +324,7 @@ namespace Elysian.Tests.Placements
 
         // ---- Helpers
 
-        private PlacementResolver Resolver() => new(host.Context, catalog, photoSettings);
+        private PlacementResolver Resolver() => new(host.Context, photoSettings);
 
         private static PlacementPublishMessage Message() => new(TestHost.Tenant.Identifier!, "update");
 
@@ -336,10 +375,12 @@ namespace Elysian.Tests.Placements
             private readonly Dictionary<string, PlacementMetadata> files = [];
 
             public List<string> Steps { get; } = [];
+            public IReadOnlyCollection<string> PublishedPaths => files.Keys;
             public bool LockAvailable { get; init; } = true;
             public bool Enabled { get; init; } = true;
+            public bool HasCatalog { get; init; } = true;
 
-            public PublishPlacementsCommandHandler Handler()
+            public PublishPlacementsCommandHandler Handler(PlacementCatalog? catalog = null)
             {
                 var store = new Mock<IPlacementStore>();
                 store.Setup(s => s.GetPublicUrl(It.IsAny<string>())).Returns<string>(path => $"https://cdn.example.com/placements/{path}");
@@ -375,6 +416,7 @@ namespace Elysian.Tests.Placements
                     .ReturnsAsync(() => Png(1200, 1600));
 
                 return new PublishPlacementsCommandHandler(
+                    new FixedPlacementCatalogSource(HasCatalog ? catalog ?? tests.catalog : null),
                     tests.Resolver(),
                     new ImageSharpPlacementRenderer(tests.photoSettings),
                     store.Object,

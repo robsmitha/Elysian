@@ -20,8 +20,8 @@ namespace Elysian.Application.Features.Placements
     }
 
     /// <summary>
-    /// A site's reserved slots, owned by the site (like its placement keys) and handed to
-    /// <c>AddPlacementFeatures</c>. JSON shape: <c>{ recipeVersion, siteDefaultKey, slots: [{ key, name, ratio,
+    /// A site's reserved slots, owned by the site (like its placement keys). It comes from the tenant's site
+    /// manifest, or for a host serving one site, from the catalog handed to <c>AddPlacementFeatures</c>. JSON shape: <c>{ recipeVersion, siteDefaultKey, slots: [{ key, name, ratio,
     /// widths, alt, fallbackCategory? }] }</c>. Bump <see cref="RecipeVersion"/> when the rendering itself changes,
     /// so the next publish re-renders every slot; ratio/width/quality changes are picked up automatically.
     /// </summary>
@@ -62,7 +62,8 @@ namespace Elysian.Application.Features.Placements
             return FromJson(stream);
         }
 
-        private void Validate()
+        /// <exception cref="InvalidOperationException">The catalog breaks a rule; the message says which</exception>
+        public void Validate()
         {
             if (Slots.Count == 0 || string.IsNullOrWhiteSpace(SiteDefaultKey))
             {
@@ -71,6 +72,11 @@ namespace Elysian.Application.Features.Placements
 
             foreach (var slot in Slots)
             {
+                if (slot == null)
+                {
+                    throw new InvalidOperationException("The placement catalog has an empty slot.");
+                }
+
                 if (string.IsNullOrWhiteSpace(slot.Key) || string.IsNullOrWhiteSpace(slot.Name))
                 {
                     throw new InvalidOperationException("Every placement slot needs a key and a name.");

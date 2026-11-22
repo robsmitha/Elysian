@@ -6,6 +6,7 @@ using Azure.Storage.Blobs;
 using CapitolSharp.Congress;
 using Elysian.Application.Features.Booking;
 using Elysian.Application.Features.Placements;
+using Elysian.Application.Features.Sites;
 using Elysian.Application.Features.UserManagement;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
@@ -42,6 +43,9 @@ namespace Elysian.Infrastructure
             // Settings and secrets that differ per tenant, falling back to this host's configuration
             services.Configure<TenantSettingsOptions>(configuration.GetSection(TenantSettingsOptions.SectionName));
             services.AddScoped(typeof(ITenantSettings<>), typeof(TenantSettingsReader<>));
+
+            // What each site says about itself: categories, featured spots, page layouts
+            services.TryAddScoped<SiteManifestReader>();
             services.Configure<TenantSecretOptions>(configuration.GetSection(TenantSecretOptions.SectionName));
             var tenantSecretVaultUri = configuration[$"{TenantSecretOptions.SectionName}:{nameof(TenantSecretOptions.VaultUri)}"];
             if (Uri.TryCreate(tenantSecretVaultUri, UriKind.Absolute, out var vaultUri))
@@ -220,8 +224,10 @@ namespace Elysian.Infrastructure
         }
 
         /// <summary>
-        /// Reserved placement images: each slot in <paramref name="catalog"/> gets fixed CDN URLs that are re-rendered,
-        /// overwritten and purged when what it shows changes. Requires <see cref="AddPhotoFeatures"/>. Reads the
+        /// Reserved placement images: each slot gets fixed CDN URLs that are re-rendered, overwritten and purged when
+        /// what it shows changes. A tenant's slots come from its site manifest. <paramref name="catalog"/> is for
+        /// tenants without one: a host serving one site passes that site's catalog; a host serving many passes
+        /// none, so a tenant without a manifest publishes nothing. Requires <see cref="AddPhotoFeatures"/>. Reads the
         /// "PlacementPublishing" and "Cloudflare" sections, and the PlacementsQueue connection the host's queue trigger
         /// uses (PlacementsQueue__queueServiceUri with managed identity, or a PlacementsQueue connection string).
         /// The host: enqueues on photo changes (<see cref="IPlacementPublishQueue"/>), sends PublishPlacementsCommand
@@ -229,12 +235,16 @@ namespace Elysian.Infrastructure
         /// GetPlacementStatusQuery to admins.
         /// </summary>
         public static IServiceCollection AddPlacementFeatures(this IServiceCollection services, IConfiguration configuration,
-            PlacementCatalog catalog)
+            PlacementCatalog? catalog = null)
         {
             services.Configure<PlacementPublishingSettings>(configuration.GetSection(PlacementPublishingSettings.SectionName));
             services.Configure<CloudflareSettings>(configuration.GetSection(CloudflareSettings.SectionName));
 
-            services.AddSingleton(catalog);
+            services.AddSingleton(new HostPlacementCatalog(catalog));
+            services.AddMemoryCache();
+            services.AddOptions<TenantSettingsOptions>();
+            services.TryAddScoped<SiteManifestReader>();
+            services.AddScoped<IPlacementCatalogSource, TenantPlacementCatalogSource>();
             services.AddSingleton(serviceProvider => new PlacementStorageClients(
                 serviceProvider.GetRequiredService<IOptions<PlacementPublishingSettings>>().Value, configuration));
 
