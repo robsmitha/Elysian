@@ -16,7 +16,7 @@ namespace Elysian.Application.Features.Placements.Queries
     [Authorize(Policy = PolicyNames.PhotoWrite)]
     public record GetPlacementStatusQuery : IRequest<PlacementStatusModel>;
 
-    public class GetPlacementStatusQueryHandler(PlacementResolver resolver, IPlacementStore store,
+    public class GetPlacementStatusQueryHandler(IPlacementCatalogSource catalogSource, PlacementResolver resolver, IPlacementStore store,
         IOptions<PlacementPublishingSettings> settings, IMultiTenantContextAccessor<ElysianTenantInfo> multiTenantContextAccessor)
         : IRequestHandler<GetPlacementStatusQuery, PlacementStatusModel>
     {
@@ -27,8 +27,14 @@ namespace Elysian.Application.Features.Placements.Queries
                 return new PlacementStatusModel(false, []);
             }
 
+            var catalog = await catalogSource.GetAsync(cancellationToken);
+            if (catalog == null)
+            {
+                return new PlacementStatusModel(false, []);
+            }
+
             var tenant = multiTenantContextAccessor.MultiTenantContext.TenantInfo!.Identifier!;
-            var resolved = await resolver.ResolveAsync(cancellationToken);
+            var resolved = await resolver.ResolveAsync(catalog, cancellationToken);
 
             var slots = new List<PlacementSlotStatus>(resolved.Count);
             foreach (var slot in resolved)

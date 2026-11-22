@@ -14,6 +14,9 @@ namespace Elysian.Application.Features.Placements.Commands
     /// URLs again. Sent by the host's placements-publish queue trigger (no user principal, like ProcessPhotoCommand),
     /// so it carries no [Authorize]; the caller must have set the tenant context first.
     ///
+    /// A publish only ever writes. A slot that leaves the catalog keeps its published files, so a page that still
+    /// shows it never gets a 404; and a tenant with no catalog publishes nothing rather than an empty set.
+    ///
     /// lock → resolve from the database → skip unchanged slots → render → write every file → purge those exact URLs
     /// → confirm through the CDN. Idempotent: it always recomputes from the database, so retries and bursts of
     /// messages converge on the same result.
@@ -21,6 +24,7 @@ namespace Elysian.Application.Features.Placements.Commands
     public record PublishPlacementsCommand(PlacementPublishMessage Message) : IRequest<PlacementPublishResult>;
 
     public class PublishPlacementsCommandHandler(
+        IPlacementCatalogSource catalogSource,
         PlacementResolver resolver,
         IPlacementRenderer renderer,
         IPlacementStore store,
@@ -56,6 +60,14 @@ namespace Elysian.Application.Features.Placements.Commands
             }
 
             var tenant = multiTenantContextAccessor.MultiTenantContext.TenantInfo!.Identifier!;
+
+            var catalog = await catalogSource.GetAsync(cancellationToken);
+            if (catalog == null)
+            {
+                logger.LogWarning("Placement publish for {Tenant} skipped: it has no placement catalog", tenant);
+                return new PlacementPublishResult(PlacementPublishOutcome.NoCatalog);
+            }
+
             await using var publishLock = await store.TryAcquireLockAsync(PlacementPaths.Lock(tenant), cancellationToken);
             if (publishLock == null)
             {
@@ -63,7 +75,7 @@ namespace Elysian.Application.Features.Placements.Commands
                 return new PlacementPublishResult(PlacementPublishOutcome.Busy);
             }
 
-            var resolved = await resolver.ResolveAsync(cancellationToken);
+            var resolved = await resolver.ResolveAsync(catalog, cancellationToken);
 
             var changed = new List<ResolvedSlot>();
             foreach (var slot in resolved)

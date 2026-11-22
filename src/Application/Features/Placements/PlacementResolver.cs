@@ -16,9 +16,10 @@ namespace Elysian.Application.Features.Placements
     /// explicit placement → first gallery photo in the slot's category (if it has one) → site-default → neutral.
     /// Only Ready photos count, matching <c>GetPortfolioQuery</c>.
     /// </summary>
-    public class PlacementResolver(ElysianContext context, PlacementCatalog catalog, IOptions<PhotoStorageSettings> photoStorageSettings)
+    public class PlacementResolver(ElysianContext context, IOptions<PhotoStorageSettings> photoStorageSettings)
     {
-        public async Task<IReadOnlyList<ResolvedSlot>> ResolveAsync(CancellationToken cancellationToken)
+        /// <param name="catalog">The current tenant's slots, from <see cref="IPlacementCatalogSource"/></param>
+        public async Task<IReadOnlyList<ResolvedSlot>> ResolveAsync(PlacementCatalog catalog, CancellationToken cancellationToken)
         {
             // Same order as GetPortfolioQuery within a category, so "first photo" matches a site's own cover fallback
             var ready = await context.Photos.AsNoTracking()
@@ -53,7 +54,7 @@ namespace Elysian.Application.Features.Placements
                             ? (siteDefault, PlacementSource.SiteDefault)
                             : ((Photo?)null, PlacementSource.Neutral);
 
-                return new ResolvedSlot(slot, photo, source, Fingerprint(slot, photo));
+                return new ResolvedSlot(slot, photo, source, Fingerprint(catalog, slot, photo));
             }).ToList();
         }
 
@@ -61,7 +62,7 @@ namespace Elysian.Application.Features.Placements
         /// Changes whenever the published bytes would: a different photo or version, a moved focal point,
         /// a new ratio/width/quality, or a bumped recipe. Stored on each file so unchanged slots are skipped.
         /// </summary>
-        private string Fingerprint(PlacementSlot slot, Photo? photo)
+        private string Fingerprint(PlacementCatalog catalog, PlacementSlot slot, Photo? photo)
         {
             var recipe = string.Join('|',
                 catalog.RecipeVersion,
