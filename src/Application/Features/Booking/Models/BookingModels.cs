@@ -79,4 +79,15 @@ namespace Elysian.Application.Features.Booking.Models
         string? Location,
         string Name,
         string Email);
+
+    /// <summary>
+    /// What the admin overview shows of the sessions booked through the site
+    /// </summary>
+    /// <param name="Available">False when the calendar can't be read right now (not connected, or Google unreachable)</param>
+    /// <param name="Bookings">Soonest first</param>
+    public record UpcomingBookingsModel(bool Available, List<UpcomingBookingModel> Bookings);
+
+    /// <param name="Title">The event's title, without the "pending" marker</param>
+    /// <param name="Tentative">Booked online and not yet confirmed by the photographer</param>
+    public record UpcomingBookingModel(string Id, string Title, DateTimeOffset Start, DateTimeOffset End, bool Tentative);
 }

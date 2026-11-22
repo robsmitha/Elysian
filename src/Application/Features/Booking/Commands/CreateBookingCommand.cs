@@ -111,6 +111,11 @@ namespace Elysian.Application.Features.Booking.Commands
         /// </summary>
         public const string SourceProperty = "elysianBooking";
 
+        /// <summary>
+        /// Starts the title of a booking the photographer hasn't confirmed yet
+        /// </summary>
+        public const string PendingPrefix = "PENDING – ";
+
         public async Task<CreateBookingResult> Handle(CreateBookingCommand request, CancellationToken cancellationToken)
         {
             if (request.IsBot)
@@ -158,7 +163,7 @@ namespace Elysian.Application.Features.Booking.Commands
 
                 var created = await calendarService.CreateEventAsync(new NewCalendarEvent(
                     EventId(row.Product.ProductId, start, email),
-                    $"PENDING – {row.Product.Name} – {name}",
+                    $"{PendingPrefix}{row.Product.Name} – {name}",
                     EventDescription(row, start, name, email, phone, referral, message, clientTimeZone),
                     start,
                     start.AddMinutes(duration),

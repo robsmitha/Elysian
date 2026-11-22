@@ -13,6 +13,13 @@ namespace Elysian.Application.Interfaces
         Task<List<CalendarEvent>> GetEventsAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// The timed events overlapping the range that carry the given private property, soonest first, skipping cancelled
+        /// ones. This is how the events online booking created are listed without reading the photographer's own.
+        /// </summary>
+        Task<List<TaggedCalendarEvent>> GetTaggedEventsAsync(DateTimeOffset from, DateTimeOffset to, string propertyName,
+            string propertyValue, CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Creates the event with the given id. Returns false when an event with that id already exists (a repeated submission).
         /// </summary>
         Task<bool> CreateEventAsync(NewCalendarEvent calendarEvent, CancellationToken cancellationToken = default);
@@ -38,6 +45,12 @@ namespace Elysian.Application.Interfaces
 
         public static CalendarEvent AllDay(DateOnly start, DateOnly endExclusive) => new(null, null, start, endExclusive);
     }
+
+    /// <summary>
+    /// An event found by a private property it carries, with what is needed to list it
+    /// </summary>
+    /// <param name="Tentative">Not yet confirmed by the photographer</param>
+    public record TaggedCalendarEvent(string Id, string Summary, DateTimeOffset Start, DateTimeOffset End, bool Tentative);
 
     /// <param name="Id">Google event id: 5-1024 characters of a-v and 0-9</param>
     /// <param name="Tentative">Shown as tentative until the photographer confirms it</param>

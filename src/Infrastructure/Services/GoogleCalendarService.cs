@@ -57,6 +57,42 @@ namespace Elysian.Infrastructure.Services
                 return events;
             }, cancellationToken);
 
+        public Task<List<TaggedCalendarEvent>> GetTaggedEventsAsync(DateTimeOffset from, DateTimeOffset to, string propertyName,
+            string propertyValue, CancellationToken cancellationToken = default) =>
+            ExecuteAsync(async service =>
+            {
+                var events = new List<TaggedCalendarEvent>();
+                string? pageToken = null;
+                do
+                {
+                    var request = service.Events.List(CalendarId);
+                    request.TimeMinDateTimeOffset = from;
+                    request.TimeMaxDateTimeOffset = to;
+                    request.SingleEvents = true;
+                    request.ShowDeleted = false;
+                    request.OrderBy = EventsResource.ListRequest.OrderByEnum.StartTime;
+                    request.PrivateExtendedProperty = $"{propertyName}={propertyValue}";
+                    request.MaxResults = 250;
+                    request.PageToken = pageToken;
+                    request.Fields = "nextPageToken,items(id,summary,status,start,end)";
+
+                    var page = await request.ExecuteAsync(cancellationToken);
+                    foreach (var item in page.Items ?? [])
+                    {
+                        if (item.Status != "cancelled"
+                            && item.Start?.DateTimeDateTimeOffset is DateTimeOffset start
+                            && item.End?.DateTimeDateTimeOffset is DateTimeOffset end)
+                        {
+                            events.Add(new TaggedCalendarEvent(item.Id, item.Summary ?? string.Empty, start, end, item.Status == "tentative"));
+                        }
+                    }
+                    pageToken = page.NextPageToken;
+                }
+                while (pageToken != null);
+
+                return events;
+            }, cancellationToken);
+
         public Task<bool> CreateEventAsync(NewCalendarEvent calendarEvent, CancellationToken cancellationToken = default) =>
             ExecuteAsync(async service =>
             {
