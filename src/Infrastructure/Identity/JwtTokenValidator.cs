@@ -54,6 +54,18 @@ namespace Elysian.Infrastructure.Identity
             return Normalize(result.ClaimsIdentity);
         }
 
+        public async Task WarmUpAsync(CancellationToken cancellationToken = default)
+        {
+            var settings = options.Value;
+            if (string.IsNullOrWhiteSpace(settings.Authority) || string.IsNullOrWhiteSpace(settings.Audience))
+            {
+                return;
+            }
+
+            // The provider's issuer and signing keys; the manager keeps them for later checks
+            await Manager(settings).GetConfigurationAsync(cancellationToken);
+        }
+
         private async Task<TokenValidationResult> ValidateAsync(string token, AuthSettings settings, CancellationToken cancellationToken)
         {
             var configuration = await Manager(settings).GetConfigurationAsync(cancellationToken);

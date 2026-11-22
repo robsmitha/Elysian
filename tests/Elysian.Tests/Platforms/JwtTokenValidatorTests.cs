@@ -72,6 +72,45 @@ namespace Elysian.Tests.Platforms
             Assert.Contains("Auth:Authority", exception.Message);
         }
 
+        [Fact]
+        public async Task Warming_up_fetches_the_providers_keys_before_anyone_signs_in()
+        {
+            var configuration = new OpenIdConnectConfiguration { Issuer = Issuer };
+            configuration.SigningKeys.Add(SigningKey);
+            var manager = new CountingConfigurationManager(configuration);
+            var validator = new JwtTokenValidator(
+                Options.Create(new AuthSettings { Authority = "https://login.example.com/tenant/v2.0", Audience = Audience }),
+                NullLogger<JwtTokenValidator>.Instance, manager);
+
+            await validator.WarmUpAsync();
+
+            Assert.Equal(1, manager.Fetches);
+            Assert.NotNull(await validator.ValidateAsync(Token(new() { ["sub"] = "person" })));
+        }
+
+        [Fact]
+        public async Task Warming_up_does_nothing_when_sign_in_is_not_configured()
+        {
+            var validator = new JwtTokenValidator(Options.Create(new AuthSettings()), NullLogger<JwtTokenValidator>.Instance);
+
+            await validator.WarmUpAsync();
+        }
+
+        private sealed class CountingConfigurationManager(OpenIdConnectConfiguration configuration) : IConfigurationManager<OpenIdConnectConfiguration>
+        {
+            public int Fetches { get; private set; }
+
+            public Task<OpenIdConnectConfiguration> GetConfigurationAsync(CancellationToken cancel)
+            {
+                Fetches++;
+                return Task.FromResult(configuration);
+            }
+
+            public void RequestRefresh()
+            {
+            }
+        }
+
         private static JwtTokenValidator Validator()
         {
             var configuration = new OpenIdConnectConfiguration { Issuer = Issuer };
