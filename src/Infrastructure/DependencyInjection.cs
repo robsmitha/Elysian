@@ -218,6 +218,11 @@ namespace Elysian.Infrastructure
         /// </summary>
         public static IServiceCollection AddPhotoFeatures(this IServiceCollection services, IConfiguration configuration)
         {
+            // Story previews: links signed with StoryPreview:SigningKey. Without the key only previews fail.
+            services.Configure<StoryPreviewSettings>(configuration.GetSection(StoryPreviewSettings.SectionName));
+            services.TryAddSingleton(TimeProvider.System);
+            services.AddSingleton<IStoryPreviewTokens, HmacStoryPreviewTokens>();
+
             return services.Configure<PhotoStorageSettings>(configuration.GetSection(nameof(PhotoStorageSettings)))
                 .AddScoped<IPhotoStorage, AzurePhotoStorage>()
                 .AddSingleton<IPhotoProcessor, ImageSharpPhotoProcessor>();
