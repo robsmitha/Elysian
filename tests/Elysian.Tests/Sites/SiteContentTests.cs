@@ -88,6 +88,60 @@ namespace Elysian.Tests.Sites
             Assert.Contains(expected, error.Message);
         }
 
+        // The schema above with its wording laid out on pages
+        private static string WithPages(string pages) => Schema
+            .Replace("\"group\": \"Home\"", "\"group\": \"Home\", \"section\": \"home.top\", \"help\": \"The first thing visitors read.\"")
+            .Replace("\"group\": \"Footer\"", "\"group\": \"Footer\", \"section\": \"site.footer\"")
+            .Replace("\"links\":", $"\"pages\": {pages}, \"links\":");
+
+        private const string Pages = """
+            [
+              { "key": "home", "name": "Home", "path": "/", "sections": [ { "key": "home.top", "name": "Top of the page" } ] },
+              { "key": "booking", "name": "Booking", "path": "/booking", "module": "booking", "sections": [ { "key": "booking.top", "name": "Top of the page" } ] },
+              { "key": "site", "name": "Name and footer", "path": "/", "wholeSite": true, "sections": [
+                { "key": "site.footer", "name": "Footer" }, { "key": "site.links", "name": "Social links", "kind": "links" } ] }
+            ]
+            """;
+
+        [Fact]
+        public void A_schema_can_lay_its_wording_out_on_pages()
+        {
+            var template = SiteTemplate.FromJson(WithPages(Pages));
+
+            Assert.Equal(["home", "booking", "site"], template.Pages.Select(p => p.Key));
+            Assert.Equal(("booking", false), (template.Pages[1].Module, template.Pages[1].WholeSite));
+            Assert.True(template.Pages[2].WholeSite);
+            Assert.Equal([SiteTemplateSection.Fields, "links"], template.Pages[2].Sections.Select(s => s.Kind));
+            Assert.Equal(("home.top", "The first thing visitors read."), (template.FindField("home.heading")!.Section, template.FindField("home.heading")!.Help));
+
+            // A template that doesn't say is still a template
+            Assert.Empty(Template.Pages);
+            Assert.Null(Template.FindField("home.heading")!.Section);
+        }
+
+        [Theory]
+        [InlineData("\"key\": \"home.top\"", "\"key\": \"site.footer\"", "section site.footer is listed twice")]
+        [InlineData("\"key\": \"booking\", \"name\"", "\"key\": \"home\", \"name\"", "page home is listed twice")]
+        [InlineData("\"path\": \"/booking\"", "\"path\": \"booking\"", "the path must start with one /")]
+        [InlineData("\"path\": \"/booking\"", "\"path\": \"//elsewhere.example\"", "the path must start with one /")]
+        [InlineData("[ { \"key\": \"booking.top\", \"name\": \"Top of the page\" } ]", "[]", "at least one section is needed")]
+        [InlineData("\"key\": \"site.footer\", \"name\"", "\"key\": \"site.foot\", \"name\"", "there is no section site.footer")]
+        [InlineData("\"kind\": \"links\"", "\"kind\": \"Not A Kind\"", "every section needs a key, a name and a kind")]
+        public void Pages_with_a_mistake_are_refused_with_the_reason(string find, string replace, string expected)
+        {
+            Assert.Contains(find, Pages);
+            var error = Assert.Throws<InvalidOperationException>(() => SiteTemplate.FromJson(WithPages(Pages.Replace(find, replace))));
+            Assert.Contains(expected, error.Message);
+        }
+
+        [Fact]
+        public void Once_pages_are_listed_every_field_has_a_place_on_one()
+        {
+            var json = WithPages(Pages).Replace(", \"section\": \"site.footer\"", "");
+            var error = Assert.Throws<InvalidOperationException>(() => SiteTemplate.FromJson(json));
+            Assert.Contains("every field needs a section", error.Message);
+        }
+
         [Fact]
         public void A_schema_that_is_not_json_is_refused()
         {
