@@ -36,13 +36,21 @@ namespace Elysian.Domain.Security
         public const string MemberRead = "member.read";
         public const string MemberWrite = "member.write";
 
+        /// <summary>
+        /// A site's own colours, wording and links: reading them, editing the draft, and making it live
+        /// </summary>
+        public const string SiteRead = "site.read";
+        public const string SiteWrite = "site.write";
+        public const string SitePublish = "site.publish";
+
         private static readonly Dictionary<string, (int Level, string[] Policies)> roleHierarchy = new(StringComparer.OrdinalIgnoreCase)
         {
             { RoleNames.Authenticated, (1,[CodeRead, CodeWrite, CodeDelete]) },
-            { RoleNames.MerchantAdmin, (100,[ProductRead, ProductWrite, ProductDelete, PhotoRead, PhotoWrite, PhotoDelete, BudgetRead, BudgetWrite, BudgetDelete, IncomeRead, IncomeWrite, IncomeDelete]) },
+            { RoleNames.MerchantAdmin, (100,[ProductRead, ProductWrite, ProductDelete, PhotoRead, PhotoWrite, PhotoDelete, BudgetRead, BudgetWrite, BudgetDelete, IncomeRead, IncomeWrite, IncomeDelete, SitePublish]) },
             // Membership roles. An owner sits just above merchantAdmin, so it gets everything that role has
             // plus managing who else belongs to the site.
-            { RoleNames.Editor, (50,[ProductRead, ProductWrite, PhotoRead, PhotoWrite, PhotoDelete]) },
+            // An editor can prepare a site's content; making it live is the owner's call
+            { RoleNames.Editor, (50,[ProductRead, ProductWrite, PhotoRead, PhotoWrite, PhotoDelete, SiteRead, SiteWrite]) },
             { RoleNames.Owner, (110,[MemberRead, MemberWrite]) },
             { RoleNames.SystemAdmin, (int.MaxValue,[UserRead, UserWrite, UserDelete]) }
         };

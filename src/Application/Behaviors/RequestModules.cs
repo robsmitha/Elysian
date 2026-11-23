@@ -33,6 +33,7 @@ namespace Elysian.Application.Behaviors
             ["Merchants"] = null,
             ["Photos"] = ModuleNames.Photos,
             ["Placements"] = ModuleNames.Photos,
+            ["SiteContent"] = null,
             ["Sites"] = null,
             ["Platform"] = null,
             ["Stories"] = ModuleNames.Photos,
