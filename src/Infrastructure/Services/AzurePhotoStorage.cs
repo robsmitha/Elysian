@@ -10,7 +10,7 @@ namespace Elysian.Infrastructure.Services
 {
     public class AzurePhotoStorage(BlobServiceClient blobServiceClient,
         IOptions<AzureStorageSettings> azureStorageSettings,
-        IOptions<PhotoStorageSettings> photoStorageSettings) : IPhotoStorage
+        IOptions<PhotoStorageSettings> photoStorageSettings, TenantImageHost? imageHost = null) : IPhotoStorage
     {
         private const string ImmutableCacheControl = "public, max-age=31536000, immutable";
 
@@ -85,9 +85,9 @@ namespace Elysian.Infrastructure.Services
 
         public string GetPublicUrl(string blobPath)
         {
-            var baseUrl = string.IsNullOrWhiteSpace(_settings.PublicBaseUrl)
-                ? _public.Uri.ToString()
-                : _settings.PublicBaseUrl;
+            // A site drawn with a template is served from the platform's images host
+            var baseUrl = imageHost?.ContainerUrl(_public.Name)
+                ?? (string.IsNullOrWhiteSpace(_settings.PublicBaseUrl) ? _public.Uri.ToString() : _settings.PublicBaseUrl);
 
             return $"{baseUrl.TrimEnd('/')}/{blobPath.TrimStart('/')}";
         }

@@ -254,6 +254,10 @@ namespace Elysian.Infrastructure
             services.TryAddSingleton(TimeProvider.System);
             services.AddSingleton<IStoryPreviewTokens, HmacStoryPreviewTokens>();
 
+            // Which images host a tenant's photos are served from (see TenantImageHost)
+            services.Configure<PlatformImagesSettings>(configuration.GetSection(PlatformImagesSettings.SectionName));
+            services.TryAddScoped<TenantImageHost>();
+
             return services.Configure<PhotoStorageSettings>(configuration.GetSection(nameof(PhotoStorageSettings)))
                 .AddScoped<IPhotoStorage, AzurePhotoStorage>()
                 .AddSingleton<IPhotoProcessor, ImageSharpPhotoProcessor>();
@@ -275,6 +279,8 @@ namespace Elysian.Infrastructure
         {
             services.Configure<PlacementPublishingSettings>(configuration.GetSection(PlacementPublishingSettings.SectionName));
             services.Configure<CloudflareSettings>(configuration.GetSection(CloudflareSettings.SectionName));
+            services.Configure<PlatformImagesSettings>(configuration.GetSection(PlatformImagesSettings.SectionName));
+            services.TryAddScoped<TenantImageHost>();
 
             services.AddSingleton(new HostPlacementCatalog(catalog));
             services.AddMemoryCache();
