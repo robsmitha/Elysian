@@ -25,8 +25,34 @@ namespace Elysian.Application.Features.SiteContent
     /// <param name="Group">The heading it is edited under, e.g. "Home"</param>
     /// <param name="Type">"text" (one line) or "multiline"</param>
     /// <param name="Default">What the site shows until the owner writes their own</param>
+    /// <param name="Section">The part of a page it shows in, by the section's key (see <see cref="SiteTemplatePage"/>)</param>
+    /// <param name="Help">A sentence for the owner about what it is for, shown under the input</param>
     public sealed record SiteTemplateField(string Key, string Label, string Group, string Type = SiteTemplateFieldTypes.Text,
-        int MaxLength = 120, bool Required = false, string? Default = null);
+        int MaxLength = 120, bool Required = false, string? Default = null, string? Section = null, string? Help = null);
+
+    /// <summary>
+    /// One part of a page, as the owner would point at it: "Top of the page", "About you". Its key is unique
+    /// in the template. The template marks the same part of the drawn page with the key as an anchor, dots as
+    /// dashes ("home.about" is #home-about), so an editing screen can show the owner where they are.
+    /// </summary>
+    /// <param name="Kind">
+    /// What is edited there: "fields" (the wording that names this section), or something an editing screen
+    /// has its own controls for, such as "theme", "links" or "categories". A kind a screen doesn't know is
+    /// left out by it.
+    /// </param>
+    public sealed record SiteTemplateSection(string Key, string Name, string Kind = SiteTemplateSection.Fields, string? Help = null)
+    {
+        public const string Fields = "fields";
+    }
+
+    /// <summary>
+    /// A page of the site, or something that runs through all of it (<paramref name="WholeSite"/>), with its
+    /// sections in the order they appear
+    /// </summary>
+    /// <param name="Path">Where to look at it on the site, e.g. "/about"</param>
+    /// <param name="Module">The module a site needs for the page to exist, e.g. "booking"</param>
+    public sealed record SiteTemplatePage(string Key, string Name, string Path, IReadOnlyList<SiteTemplateSection> Sections,
+        bool WholeSite = false, string? Module = null, string? Help = null);
 
     public static class SiteTemplateFieldTypes
     {
@@ -67,6 +93,12 @@ namespace Elysian.Application.Features.SiteContent
         public IReadOnlyList<SiteTemplateFont> Fonts { get; init; } = [];
 
         public IReadOnlyList<SiteTemplateField> Fields { get; init; } = [];
+
+        /// <summary>
+        /// The site's pages and their sections, in the order an owner meets them. Empty for a template that
+        /// doesn't say, whose wording is then edited under each field's group.
+        /// </summary>
+        public IReadOnlyList<SiteTemplatePage> Pages { get; init; } = [];
 
         /// <summary>
         /// Names of the outside links the template shows, e.g. "instagram"
@@ -238,6 +270,27 @@ namespace Elysian.Application.Features.SiteContent
                 Require(SiteContentRules.TextProblem(field, field.Default ?? string.Empty, checkRequired: false) == null, $"{label}: its default breaks its own rules.");
                 Require(!field.Required || !string.IsNullOrWhiteSpace(field.Default), $"{label}: a required field needs a default, so a new site is never missing it.");
             }
+
+            Unique(Pages.Select(p => p.Key), $"{name}: page");
+            Unique(Pages.SelectMany(p => p.Sections ?? []).Select(s => s.Key), $"{name}: section");
+            foreach (var page in Pages)
+            {
+                var label = $"{name}, page {page.Key}";
+                Require(IsKey(page.Key) && !string.IsNullOrWhiteSpace(page.Name), $"{label}: needs a key and a name.");
+                Require(page.Path is { Length: > 0 and <= 200 } && page.Path.StartsWith('/') && !page.Path.StartsWith("//"), $"{label}: the path must start with one /.");
+                Require(page.Module == null || IsKey(page.Module), $"{label}: the module must be lowercase letters, digits and dashes.");
+                Require(page.Sections is { Count: > 0 }, $"{label}: at least one section is needed.");
+                Require(page.Sections!.All(s => IsKey(s.Key) && !string.IsNullOrWhiteSpace(s.Name) && IsKey(s.Kind)), $"{label}: every section needs a key, a name and a kind.");
+            }
+
+            var sections = Pages.SelectMany(p => p.Sections).Select(s => s.Key).ToHashSet(StringComparer.Ordinal);
+            foreach (var field in Fields.Where(f => f.Section != null))
+            {
+                Require(sections.Contains(field.Section!), $"{name}, field {field.Key}: there is no section {field.Section}.");
+            }
+            // Once a template lays out its pages, every field has a place on one, so none is lost from the editing screen
+            Require(Pages.Count == 0 || Fields.All(f => f.Section != null), $"{name}: every field needs a section once the template lists its pages.");
+            Require(Fields.All(f => f.Help is null or { Length: <= 200 }), $"{name}: a field's help must be 200 characters or fewer.");
 
             Unique(Links, $"{name}: link");
             Require(Links.All(IsKey), $"{name}: link names must be lowercase letters, digits, dots and dashes.");
