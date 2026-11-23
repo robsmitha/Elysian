@@ -11,14 +11,19 @@ namespace Elysian.Infrastructure.Services
     /// Verifies Cloudflare Turnstile tokens with the siteverify endpoint
     /// </summary>
     public class TurnstileVerificationService(HttpClient httpClient, IOptions<TurnstileSettings> options, ITenantSecretStore tenantSecretStore,
-        ILogger<TurnstileVerificationService> logger) : IHumanVerificationService
+        ILogger<TurnstileVerificationService> logger,
+        Finbuckle.MultiTenant.Abstractions.IMultiTenantContextAccessor<Elysian.Domain.Data.ElysianTenantInfo>? multiTenantContextAccessor = null)
+        : IHumanVerificationService
     {
         private const string SiteVerifyUrl = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
         public async Task<bool> VerifyAsync(string token, string? remoteIp, CancellationToken cancellationToken = default)
         {
-            // A tenant with its own Turnstile widget has its own secret; otherwise the host's is used
-            var secretKey = await tenantSecretStore.GetAsync(TenantSecretNames.TurnstileSecretKey, cancellationToken) ?? options.Value.SecretKey;
+            // A tenant with its own Turnstile widget has its own secret. Sites drawn with a shared template
+            // share one widget and its secret. Anything else uses the host's.
+            var isCloud = multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Runtime == Elysian.Domain.Platforms.RuntimeNames.Cloud;
+            var secretKey = await tenantSecretStore.GetAsync(TenantSecretNames.TurnstileSecretKey, cancellationToken)
+                ?? (isCloud && !string.IsNullOrEmpty(options.Value.CloudSecretKey) ? options.Value.CloudSecretKey : options.Value.SecretKey);
             if (string.IsNullOrEmpty(secretKey))
             {
                 throw new InvalidOperationException($"{TurnstileSettings.SectionName}:{nameof(TurnstileSettings.SecretKey)} is not configured.");

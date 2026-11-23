@@ -363,6 +363,8 @@ namespace Elysian.Infrastructure
             }
 
             services.Configure<ResendSettings>(configuration.GetSection(ResendSettings.SectionName));
+            services.Configure<PlatformEmailSettings>(configuration.GetSection(PlatformEmailSettings.SectionName));
+            services.TryAddSingleton(TimeProvider.System);
             // AddElysianFeatures replaces this with the per-tenant reader; without it the host's values are used
             services.TryAddScoped(typeof(ITenantSettings<>), typeof(HostTenantSettings<>));
             services.AddResend(options => options.ApiToken = configuration[$"{ResendSettings.SectionName}:{nameof(ResendSettings.ApiKey)}"]!);

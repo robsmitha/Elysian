@@ -9,5 +9,12 @@ namespace Elysian.Infrastructure.Settings
 
         [PlatformOnly]
         public string SecretKey { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The secret of the widget that sites drawn with a shared template use. They share one widget, so
+        /// they share one secret; a site with its own code uses its own, or <see cref="SecretKey"/>.
+        /// </summary>
+        [PlatformOnly]
+        public string CloudSecretKey { get; set; } = string.Empty;
     }
 }
