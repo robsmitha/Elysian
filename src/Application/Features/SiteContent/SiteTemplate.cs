@@ -1,5 +1,8 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using Elysian.Application.Features.Sites;
 
 namespace Elysian.Application.Features.SiteContent
 {
@@ -71,6 +74,76 @@ namespace Elysian.Application.Features.SiteContent
         public IReadOnlyList<string> Links { get; init; } = [];
 
         public IReadOnlyList<SiteTemplateCategory> Categories { get; init; } = [];
+
+        /// <summary>
+        /// The template's site manifest: its pages, the spots a photo can be picked for and the reserved image
+        /// slots, the same for every site drawn with it. It is the template's own file (site-manifest.json),
+        /// with site.name and site.publicUrl left for each site to fill. Null when the host gave none, in
+        /// which case the template's sites have no reserved images.
+        /// </summary>
+        [JsonIgnore]
+        public string? ManifestJson { get; private set; }
+
+        /// <summary>
+        /// The template's manifest made out for one site. <paramref name="categoryNames"/> are the owner's
+        /// own names for categories, by slug; a category without one keeps the template's name.
+        /// </summary>
+        /// <returns>Null when the template has no manifest</returns>
+        public string? ManifestFor(string siteName, string publicUrl, IReadOnlyDictionary<string, string>? categoryNames = null)
+        {
+            if (ManifestJson == null)
+            {
+                return null;
+            }
+
+            var manifest = JsonNode.Parse(ManifestJson, documentOptions: new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true })!.AsObject();
+            var site = manifest["site"] as JsonObject ?? [];
+            site["name"] = siteName;
+            site["publicUrl"] = publicUrl;
+            manifest["site"] = site;
+
+            foreach (var category in manifest["categories"]?.AsArray() ?? [])
+            {
+                if (category is JsonObject item && item["slug"]?.GetValue<string>() is { } slug
+                    && categoryNames != null && categoryNames.TryGetValue(slug, out var name) && !string.IsNullOrWhiteSpace(name))
+                {
+                    item["name"] = name;
+                }
+            }
+
+            return manifest.ToJsonString();
+        }
+
+        /// <summary>
+        /// Attaches the template's manifest, checking it the way a site's own manifest is checked and that it
+        /// lists the same categories as the schema, so a mistake is caught when the host starts.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">With what is wrong, in plain words</exception>
+        public SiteTemplate WithManifest(string manifestJson)
+        {
+            ManifestJson = manifestJson;
+            var name = $"Template {Key}@{Version}";
+
+            SiteManifestDocument document;
+            try
+            {
+                document = SiteManifestDocument.FromJson(ManifestFor("Example", "https://example.invalid")!);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or JsonException or FormatException)
+            {
+                ManifestJson = null;
+                throw new InvalidOperationException($"{name}: its site manifest can't be used. {ex.Message}", ex);
+            }
+
+            var inSchema = Categories.Select(c => c.Slug).Order(StringComparer.Ordinal);
+            var inManifest = document.Categories.Select(c => c.Slug).Order(StringComparer.Ordinal);
+            if (!inSchema.SequenceEqual(inManifest))
+            {
+                ManifestJson = null;
+                throw new InvalidOperationException($"{name}: its schema and its site manifest list different categories.");
+            }
+            return this;
+        }
 
         internal static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
         {
@@ -214,5 +287,11 @@ namespace Elysian.Application.Features.SiteContent
         /// Reads each schema; a host passes the template files it was built with
         /// </summary>
         public static SiteTemplateCatalog FromJson(params string[] schemas) => new(schemas.Select(SiteTemplate.FromJson));
+
+        /// <summary>
+        /// Reads each template's schema together with its site manifest, when it has one
+        /// </summary>
+        public static SiteTemplateCatalog FromFiles(IEnumerable<(string Schema, string? Manifest)> templates) =>
+            new(templates.Select(t => t.Manifest == null ? SiteTemplate.FromJson(t.Schema) : SiteTemplate.FromJson(t.Schema).WithManifest(t.Manifest)));
     }
 }
