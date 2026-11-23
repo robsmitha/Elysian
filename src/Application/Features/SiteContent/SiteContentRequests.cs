@@ -16,8 +16,11 @@ namespace Elysian.Application.Features.SiteContent
     /// <param name="Draft">The content being edited. A site nobody has edited yet gets the template's defaults.</param>
     /// <param name="PublishedVersion">The version visitors see, or null when nothing has been published</param>
     /// <param name="HasUnpublishedChanges">The draft differs from what visitors see</param>
+    /// <param name="Templates">The templates the site could be drawn with, the current one among them</param>
+    /// <param name="TemplateChange">A change of template that is under way, or null</param>
     public sealed record SiteContentModel(SiteTemplate Template, SiteContentDocument Draft, int? PublishedVersion,
-        DateTimeOffset? PublishedAt, bool HasUnpublishedChanges);
+        DateTimeOffset? PublishedAt, bool HasUnpublishedChanges, IReadOnlyList<SiteTemplateOption>? Templates = null,
+        SiteTemplateChangeModel? TemplateChange = null);
 
     public sealed record SiteContentPublishedModel(int Version, DateTimeOffset PublishedAt);
 
@@ -32,7 +35,8 @@ namespace Elysian.Application.Features.SiteContent
     [Authorize(Policy = PolicyNames.SiteRead)]
     public record GetSiteContentQuery : IRequest<SiteContentModel>;
 
-    public class GetSiteContentQueryHandler(ElysianContext context, SiteContentReader reader) : IRequestHandler<GetSiteContentQuery, SiteContentModel>
+    public class GetSiteContentQueryHandler(ElysianContext context, SiteContentReader reader, SiteTemplateChanger? changer = null)
+        : IRequestHandler<GetSiteContentQuery, SiteContentModel>
     {
         public async Task<SiteContentModel> Handle(GetSiteContentQuery request, CancellationToken cancellationToken)
         {
@@ -45,7 +49,9 @@ namespace Elysian.Application.Features.SiteContent
 
             return new SiteContentModel(template, draft, published?.Version, published?.CreatedAt,
                 HasUnpublishedChanges: published == null || published.Json != draft.ToJson()
-                    || published.TemplateKey != template.Key || published.TemplateVersion != template.Version);
+                    || published.TemplateKey != template.Key || published.TemplateVersion != template.Version,
+                Templates: changer?.Options() ?? [],
+                TemplateChange: changer == null ? null : await changer.PendingAsync(cancellationToken));
         }
     }
 

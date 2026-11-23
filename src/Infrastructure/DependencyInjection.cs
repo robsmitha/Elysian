@@ -227,6 +227,7 @@ namespace Elysian.Infrastructure
         {
             services.AddSingleton(templates ?? new SiteTemplateCatalog());
             services.AddScoped<SiteContentReader>();
+            services.AddScoped<SiteTemplateChanger>();
 
             services.Configure<StoryPreviewSettings>(configuration.GetSection(StoryPreviewSettings.SectionName));
             services.TryAddSingleton(TimeProvider.System);

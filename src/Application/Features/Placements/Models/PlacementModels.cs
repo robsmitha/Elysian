@@ -51,8 +51,11 @@ namespace Elysian.Application.Features.Placements.Models
     /// <summary>
     /// Body of a placements-publish queue message. <see cref="Tenant"/> lets a host's tenant resolver read it from
     /// the trigger's binding data. <see cref="Repurge"/> set means "purge these exact URLs again".
+    /// <see cref="TemplateKey"/> and <see cref="TemplateVersion"/> set means "the site is moving to this
+    /// template": its images are published, and then the site is pointed at it (see SiteTemplateChanger).
     /// </summary>
-    public sealed record PlacementPublishMessage(string Tenant, string Reason, bool Force = false, string[]? Repurge = null);
+    public sealed record PlacementPublishMessage(string Tenant, string Reason, bool Force = false, string[]? Repurge = null,
+        string? TemplateKey = null, int? TemplateVersion = null);
 
     public enum PlacementPublishOutcome
     {

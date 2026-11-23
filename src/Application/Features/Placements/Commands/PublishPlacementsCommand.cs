@@ -1,4 +1,5 @@
 using Elysian.Application.Features.Placements.Models;
+using Elysian.Application.Features.SiteContent;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
 using Elysian.Infrastructure.Settings;
@@ -33,7 +34,8 @@ namespace Elysian.Application.Features.Placements.Commands
         IPhotoStorage photoStorage,
         IOptions<PlacementPublishingSettings> settings,
         IMultiTenantContextAccessor<ElysianTenantInfo> multiTenantContextAccessor,
-        ILogger<PublishPlacementsCommandHandler> logger)
+        ILogger<PublishPlacementsCommandHandler> logger,
+        SiteTemplateChanger? templateChanger = null)
         : IRequestHandler<PublishPlacementsCommand, PlacementPublishResult>
     {
         /// <summary>
@@ -61,7 +63,11 @@ namespace Elysian.Application.Features.Placements.Commands
 
             var tenant = multiTenantContextAccessor.MultiTenantContext.TenantInfo!.Identifier!;
 
-            var catalog = await catalogSource.GetAsync(cancellationToken);
+            // A site moving to another template publishes that template's images, not the ones it shows now
+            var movingTo = request.Message is { TemplateKey: { } key, TemplateVersion: { } version } ? (Key: key, Version: version) : ((string Key, int Version)?)null;
+            var catalog = movingTo is { } target
+                ? templateChanger?.CatalogFor(target.Key, target.Version)
+                : await catalogSource.GetAsync(cancellationToken);
             if (catalog == null)
             {
                 logger.LogWarning("Placement publish for {Tenant} skipped: it has no placement catalog", tenant);
@@ -89,6 +95,8 @@ namespace Elysian.Application.Features.Placements.Commands
 
             if (changed.Count == 0)
             {
+                // Its images were already there (a site moving back to a template it was on before)
+                await SettleAsync(movingTo, cancellationToken);
                 return new PlacementPublishResult(PlacementPublishOutcome.UpToDate);
             }
 
@@ -158,8 +166,16 @@ namespace Elysian.Application.Features.Placements.Commands
             logger.LogInformation("Published {Slots} placement slots ({Files} files): {Names}",
                 changed.Count, urls.Count, string.Join(", ", changed.Select(c => $"{c.Slot.Name}={c.Source}")));
 
+            // Every image the new template shows now exists: only now is the site pointed at it
+            await SettleAsync(movingTo, cancellationToken);
+
             return new PlacementPublishResult(PlacementPublishOutcome.Published, changed.Count, purger.IsConfigured ? urls.Count : 0);
         }
+
+        private Task SettleAsync((string Key, int Version)? movingTo, CancellationToken cancellationToken) =>
+            movingTo is { } target && templateChanger != null
+                ? templateChanger.CompleteAsync(target.Key, target.Version, cancellationToken)
+                : Task.CompletedTask;
 
         /// <summary>
         /// Smallest first (the order the renderer returns), so the largest, which carries the fingerprint the next

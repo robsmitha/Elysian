@@ -83,6 +83,11 @@ namespace Elysian.Application.Features.SiteContent
 
         public string Name { get; init; } = string.Empty;
 
+        /// <summary>
+        /// A sentence about how it looks, for someone choosing between templates
+        /// </summary>
+        public string? Description { get; init; }
+
         public IReadOnlyList<SiteTemplatePalette> Palettes { get; init; } = [];
 
         /// <summary>
@@ -230,6 +235,7 @@ namespace Elysian.Application.Features.SiteContent
             Require(IsKey(Key), "A template needs a key of lowercase letters, digits, dots and dashes.");
             Require(Version >= 1, $"{name}: the version must be 1 or more.");
             Require(!string.IsNullOrWhiteSpace(Name), $"{name}: give it a name.");
+            Require(Description is null or { Length: <= 200 }, $"{name}: the description must be 200 characters or fewer.");
 
             Require(Palettes.Count > 0, $"{name}: at least one palette is needed.");
             Unique(Palettes.Select(p => p.Key), $"{name}: palette");
