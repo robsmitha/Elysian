@@ -154,7 +154,7 @@ namespace Elysian.Application.Features.Platform.Commands
                 .FirstOrDefault(s => string.Equals(s, status?.Trim(), StringComparison.OrdinalIgnoreCase));
     }
 
-    public class SetTenantStatusCommandHandler(PlatformContext platform) : IRequestHandler<SetTenantStatusCommand>
+    public class SetTenantStatusCommandHandler(PlatformContext platform, IEdgeHostMap? hostMap = null) : IRequestHandler<SetTenantStatusCommand>
     {
         public async Task Handle(SetTenantStatusCommand request, CancellationToken cancellationToken)
         {
@@ -164,6 +164,12 @@ namespace Elysian.Application.Features.Platform.Commands
 
             tenant.Status = SetTenantStatusCommandValidator.Status(request.Status)!;
             await platform.SaveChangesAsync(cancellationToken);
+
+            // The Worker that serves cloud sites reads a site's status from the edge
+            if (hostMap != null)
+            {
+                await hostMap.SyncAsync(tenant.Identifier!, cancellationToken);
+            }
         }
     }
 

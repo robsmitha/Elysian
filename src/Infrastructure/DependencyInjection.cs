@@ -217,8 +217,8 @@ namespace Elysian.Infrastructure
         /// <summary>
         /// Site content: what an owner changes within a shared template (colours, wording, links), edited as a
         /// draft and published to the edge. Pass the template schemas this host was built with. Editing works
-        /// with nothing else configured; previews need StoryPreview:SigningKey, and publishing needs an
-        /// <see cref="ISiteContentEdge"/> registered before or after this call.
+        /// with nothing else configured; previews need StoryPreview:SigningKey, and publishing needs the edge
+        /// store (the EdgeStore section).
         /// </summary>
         public static IServiceCollection AddSiteContentFeatures(this IServiceCollection services, IConfiguration configuration,
             SiteTemplateCatalog? templates = null)
@@ -229,7 +229,18 @@ namespace Elysian.Infrastructure
             services.Configure<StoryPreviewSettings>(configuration.GetSection(StoryPreviewSettings.SectionName));
             services.TryAddSingleton(TimeProvider.System);
             services.TryAddSingleton<ISitePreviewTokens, HmacSitePreviewTokens>();
-            services.TryAddScoped<ISiteContentEdge, UnconfiguredSiteContentEdge>();
+
+            // The edge store: published content and the host map, in a Cloudflare KV namespace. Without the
+            // EdgeStore settings only publishing fails; everything else carries on.
+            services.Configure<EdgeStoreSettings>(configuration.GetSection(EdgeStoreSettings.SectionName));
+            services.AddHttpClient<IEdgeConfigStore, CloudflareKvEdgeStore>((serviceProvider, httpClient) =>
+            {
+                httpClient.BaseAddress = new Uri(serviceProvider.GetRequiredService<IOptions<EdgeStoreSettings>>().Value.ApiBaseUrl);
+                httpClient.Timeout = TimeSpan.FromSeconds(15);
+            });
+            services.TryAddScoped<EdgeSites>();
+            services.TryAddScoped<ISiteContentEdge>(serviceProvider => serviceProvider.GetRequiredService<EdgeSites>());
+            services.TryAddScoped<IEdgeHostMap>(serviceProvider => serviceProvider.GetRequiredService<EdgeSites>());
             return services;
         }
 

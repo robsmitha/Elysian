@@ -34,9 +34,9 @@ namespace Elysian.Application.Features.Platform.Commands
     }
 
     /// <summary>
-    /// Records an address for a site. This only writes the record: pointing DNS at the site, attaching the
-    /// domain to a Worker and telling the edge about the host are separate steps, done by whoever calls this.
-    /// A site's first address becomes its primary one.
+    /// Records an address for a site and, for a site drawn with a shared template, tells the edge about it.
+    /// Pointing DNS at the site and attaching the domain to a Worker are separate steps, done by whoever
+    /// calls this. A site's first address becomes its primary one.
     /// </summary>
     /// <param name="Kind">"subdomain" (the site's own name under a platform's domain) or "custom"</param>
     /// <param name="Status">"pending" or "active". Left out, the address is pending.</param>
@@ -68,8 +68,8 @@ namespace Elysian.Application.Features.Platform.Commands
         }
     }
 
-    public class AddTenantDomainCommandHandler(PlatformContext platform, IClaimsPrincipalAccessor claimsPrincipalAccessor, TimeProvider timeProvider)
-        : IRequestHandler<AddTenantDomainCommand, TenantDomainModel>
+    public class AddTenantDomainCommandHandler(PlatformContext platform, IClaimsPrincipalAccessor claimsPrincipalAccessor, TimeProvider timeProvider,
+        IEdgeHostMap? hostMap = null) : IRequestHandler<AddTenantDomainCommand, TenantDomainModel>
     {
         public async Task<TenantDomainModel> Handle(AddTenantDomainCommand request, CancellationToken cancellationToken)
         {
@@ -105,6 +105,7 @@ namespace Elysian.Application.Features.Platform.Commands
             platform.TenantDomains.Add(domain);
 
             await platform.SaveChangesAsync(cancellationToken);
+            await TenantDomains.SyncAsync(hostMap, tenant, cancellationToken);
             return TenantDomains.Model(domain);
         }
     }
@@ -132,8 +133,8 @@ namespace Elysian.Application.Features.Platform.Commands
         }
     }
 
-    public class UpdateTenantDomainCommandHandler(PlatformContext platform, IClaimsPrincipalAccessor claimsPrincipalAccessor, TimeProvider timeProvider)
-        : IRequestHandler<UpdateTenantDomainCommand, TenantDomainModel>
+    public class UpdateTenantDomainCommandHandler(PlatformContext platform, IClaimsPrincipalAccessor claimsPrincipalAccessor, TimeProvider timeProvider,
+        IEdgeHostMap? hostMap = null) : IRequestHandler<UpdateTenantDomainCommand, TenantDomainModel>
     {
         public async Task<TenantDomainModel> Handle(UpdateTenantDomainCommand request, CancellationToken cancellationToken)
         {
@@ -160,6 +161,8 @@ namespace Elysian.Application.Features.Platform.Commands
             domain.ModifiedAt = now;
 
             await platform.SaveChangesAsync(cancellationToken);
+            // Also the way to repair the edge's copy: updating an address with nothing changed rewrites it
+            await TenantDomains.SyncAsync(hostMap, tenant, cancellationToken);
             return TenantDomains.Model(domain);
         }
     }
@@ -171,8 +174,8 @@ namespace Elysian.Application.Features.Platform.Commands
     [RequiresPlatformAdmin]
     public record RemoveTenantDomainCommand(string? Identifier, string? Host) : IRequest;
 
-    public class RemoveTenantDomainCommandHandler(PlatformContext platform, IClaimsPrincipalAccessor claimsPrincipalAccessor, TimeProvider timeProvider)
-        : IRequestHandler<RemoveTenantDomainCommand>
+    public class RemoveTenantDomainCommandHandler(PlatformContext platform, IClaimsPrincipalAccessor claimsPrincipalAccessor, TimeProvider timeProvider,
+        IEdgeHostMap? hostMap = null) : IRequestHandler<RemoveTenantDomainCommand>
     {
         public async Task Handle(RemoveTenantDomainCommand request, CancellationToken cancellationToken)
         {
@@ -185,6 +188,13 @@ namespace Elysian.Application.Features.Platform.Commands
             if (domain.IsPrimary && domains.Count > 1)
             {
                 throw new ConflictException("Make another address primary before removing this one.");
+            }
+
+            // The edge first: if this fails the record is still there and the removal can be tried again.
+            // The other way round would leave an address answering with no record of it.
+            if (hostMap != null && tenant.Runtime == RuntimeNames.Cloud)
+            {
+                await hostMap.RemoveAsync(domain.Host, cancellationToken);
             }
 
             domain.IsDeleted = true;
@@ -205,6 +215,13 @@ namespace Elysian.Application.Features.Platform.Commands
             return await platform.Tenants.FirstOrDefaultAsync(t => t.Identifier == normalized, cancellationToken)
                 ?? throw new NotFoundException("Site", normalized);
         }
+
+        /// <summary>
+        /// Rewrites the edge's entries for a site's addresses from what is now recorded. The host map itself
+        /// leaves out sites with their own code and hosts with no edge store.
+        /// </summary>
+        public static Task SyncAsync(IEdgeHostMap? hostMap, ElysianTenantInfo tenant, CancellationToken cancellationToken) =>
+            hostMap == null ? Task.CompletedTask : hostMap.SyncAsync(tenant.Identifier!, cancellationToken);
 
         public static void ClearPrimary(IEnumerable<TenantDomain> domains, string actor, DateTimeOffset now)
         {
