@@ -205,6 +205,12 @@ namespace Elysian.Application.Features.SiteContent
             key != null && version != null && templates.TryGetValue((key, version.Value), out var template) ? template : null;
 
         /// <summary>
+        /// The newest version of a template this host has, which is what a new site starts on
+        /// </summary>
+        public SiteTemplate? Latest(string? key) =>
+            templates.Values.Where(t => t.Key == key).MaxBy(t => t.Version);
+
+        /// <summary>
         /// Reads each schema; a host passes the template files it was built with
         /// </summary>
         public static SiteTemplateCatalog FromJson(params string[] schemas) => new(schemas.Select(SiteTemplate.FromJson));

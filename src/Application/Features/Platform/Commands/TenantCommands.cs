@@ -1,4 +1,5 @@
 using Elysian.Application.Exceptions;
+using Elysian.Application.Features.SiteContent;
 using Elysian.Application.Features.UserManagement;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
@@ -14,8 +15,9 @@ using Microsoft.Extensions.Options;
 namespace Elysian.Application.Features.Platform.Commands
 {
     /// <param name="OwnerInviteCode">Give this to the site's owner. Shown once; only its hash is kept.</param>
+    /// <param name="TemplateKey">The shared template a cloud site is drawn with; null for a site with its own code</param>
     public record CreatedTenant(string Identifier, string Platform, string Runtime, IReadOnlyList<string> Modules,
-        string OwnerInviteCode, DateTimeOffset OwnerInviteExpiresAt)
+        string OwnerInviteCode, DateTimeOffset OwnerInviteExpiresAt, string? TemplateKey = null, int? TemplateVersion = null)
     {
         // Keeps the code out of request logging
         public override string ToString() => $"{nameof(CreatedTenant)} {{ Identifier = {Identifier} }}";
@@ -25,10 +27,14 @@ namespace Elysian.Application.Features.Platform.Commands
     /// Everything a new site needs to exist, in one step with nothing to do by hand afterwards: the tenant, its
     /// merchant record, the modules its platform includes, and an invite for its owner. Today a platform admin
     /// sends this; a public sign-up would put payment in front of the same command.
+    ///
+    /// A cloud site is pinned to a shared template: the one asked for, or its platform's default, at the
+    /// newest version this host has. A site with its own code has none.
     /// </summary>
+    /// <param name="Template">Key of the template for a cloud site. Left out, the platform's default.</param>
     [RequiresPlatformAdmin]
-    public record CreateTenantCommand(string? Identifier, string? Name, string? Platform, string? Runtime, string? OwnerEmail = null)
-        : IRequest<CreatedTenant>;
+    public record CreateTenantCommand(string? Identifier, string? Name, string? Platform, string? Runtime, string? OwnerEmail = null,
+        string? Template = null) : IRequest<CreatedTenant>;
 
     public class CreateTenantCommandValidator : AbstractValidator<CreateTenantCommand>
     {
@@ -64,7 +70,8 @@ namespace Elysian.Application.Features.Platform.Commands
     }
 
     public class CreateTenantCommandHandler(PlatformContext platform, IClaimsPrincipalAccessor claimsPrincipalAccessor,
-        TimeProvider timeProvider, IOptions<AuthSettings> options) : IRequestHandler<CreateTenantCommand, CreatedTenant>
+        TimeProvider timeProvider, IOptions<AuthSettings> options, SiteTemplateCatalog? templates = null)
+        : IRequestHandler<CreateTenantCommand, CreatedTenant>
     {
         public async Task<CreatedTenant> Handle(CreateTenantCommand request, CancellationToken cancellationToken)
         {
@@ -84,6 +91,21 @@ namespace Elysian.Application.Features.Platform.Commands
             var merchantType = await platform.MerchantTypes.FirstOrDefaultAsync(t => t.Name == definition.MerchantType, cancellationToken)
                 ?? throw new InvalidOperationException($"The {definition.MerchantType} merchant type is missing, so a {definition.Name} site can't be created.");
 
+            SiteTemplate? template = null;
+            var templateKey = string.IsNullOrWhiteSpace(request.Template) ? definition.DefaultTemplate : request.Template.Trim().ToLowerInvariant();
+            if (runtime == RuntimeNames.Cloud)
+            {
+                // Without a template a cloud site could never be drawn, so it is not created half made
+                template = templates?.Latest(templateKey)
+                    ?? throw new CustomValidationException([new FluentValidation.Results.ValidationFailure(nameof(request.Template),
+                        $"This host has no template named {templateKey ?? "(none)"}.")]);
+            }
+            else if (!string.IsNullOrWhiteSpace(request.Template))
+            {
+                throw new CustomValidationException([new FluentValidation.Results.ValidationFailure(nameof(request.Template),
+                    "Only a cloud site has a template. A custom site has its own code.")]);
+            }
+
             var tenant = new ElysianTenantInfo
             {
                 Id = Guid.NewGuid().ToString(),
@@ -92,6 +114,8 @@ namespace Elysian.Application.Features.Platform.Commands
                 Platform = definition.Key,
                 Runtime = runtime,
                 Status = TenantStatusNames.Active,
+                TemplateKey = template?.Key,
+                TemplateVersion = template?.Version,
             };
             platform.Tenants.Add(tenant);
 
@@ -128,7 +152,40 @@ namespace Elysian.Application.Features.Platform.Commands
             // One save, one transaction: a site either exists completely or not at all
             await platform.SaveChangesAsync(cancellationToken);
 
-            return new CreatedTenant(identifier, definition.Key, runtime, definition.IncludedModules, code, invite.ExpiresAt);
+            return new CreatedTenant(identifier, definition.Key, runtime, definition.IncludedModules, code, invite.ExpiresAt,
+                template?.Key, template?.Version);
+        }
+    }
+
+    /// <param name="PrimaryHost">The address the site is known by, or null when it has none recorded</param>
+    /// <param name="ContentVersion">The published version of a cloud site's content, or null when it has never published</param>
+    public record TenantSummary(string Identifier, string? Name, string? Platform, string? Runtime, string? Status,
+        string? TemplateKey, int? TemplateVersion, int? ContentVersion, string? PrimaryHost, IReadOnlyList<string> Modules);
+
+    /// <summary>
+    /// Every site on the platform, by identifier
+    /// </summary>
+    [RequiresPlatformAdmin]
+    public record GetTenantsQuery : IRequest<List<TenantSummary>>;
+
+    public class GetTenantsQueryHandler(PlatformContext platform) : IRequestHandler<GetTenantsQuery, List<TenantSummary>>
+    {
+        public async Task<List<TenantSummary>> Handle(GetTenantsQuery request, CancellationToken cancellationToken)
+        {
+            var tenants = await platform.Tenants.AsNoTracking().ToListAsync(cancellationToken);
+            var primaryHosts = (await platform.TenantDomains.AsNoTracking().Where(d => d.IsPrimary).ToListAsync(cancellationToken))
+                .ToDictionary(d => d.TenantId, d => d.Host);
+            var modules = (await platform.TenantModules.AsNoTracking()
+                    .Where(m => m.Status != TenantModuleStatus.Suspended)
+                    .ToListAsync(cancellationToken))
+                .ToLookup(m => m.TenantId, m => m.ModuleKey);
+
+            return [.. tenants
+                .OrderBy(t => t.Identifier, StringComparer.Ordinal)
+                .Select(t => new TenantSummary(t.Identifier!, t.Name, t.Platform, t.Runtime, t.Status,
+                    t.TemplateKey, t.TemplateVersion, t.ContentVersion,
+                    primaryHosts.GetValueOrDefault(t.Id!),
+                    [.. modules[t.Id!].Order(StringComparer.Ordinal)]))];
         }
     }
 

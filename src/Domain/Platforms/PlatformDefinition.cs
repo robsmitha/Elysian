@@ -25,7 +25,8 @@ namespace Elysian.Domain.Platforms
     /// <summary>
     /// A product line that tenants belong to. Included modules are switched on when a tenant is created;
     /// add-on modules can be switched on later. A module in neither list can't be enabled for the platform's tenants.
-    /// MerchantType names the kind of merchant record a new tenant gets.
+    /// MerchantType names the kind of merchant record a new tenant gets. DefaultTemplate is the shared
+    /// template a new cloud site is drawn with when none is asked for; null for a platform with no template.
     /// </summary>
     public record PlatformDefinition(
         string Key,
@@ -33,7 +34,8 @@ namespace Elysian.Domain.Platforms
         bool HasCloudRuntime,
         IReadOnlyList<string> IncludedModules,
         IReadOnlyList<string> AddOnModules,
-        string MerchantType)
+        string MerchantType,
+        string? DefaultTemplate = null)
     {
         public bool Offers(string module) =>
             IncludedModules.Contains(module, StringComparer.OrdinalIgnoreCase)
@@ -48,7 +50,8 @@ namespace Elysian.Domain.Platforms
             HasCloudRuntime: true,
             IncludedModules: [ModuleNames.Photos],
             AddOnModules: [ModuleNames.Booking, ModuleNames.Instagram],
-            MerchantType: "Store");
+            MerchantType: "Store",
+            DefaultTemplate: "classic");
 
         /// <summary>
         /// Sites built for one owner, with no shared template. Nothing is included; modules are switched on per tenant.
