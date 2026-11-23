@@ -44,8 +44,8 @@ namespace Elysian.Infrastructure.Context
             "DebtPlan", "FinancialAccount", "FinancialCategory", "GoalContribution", "IncomePayment", "IncomeSource",
             "IncomeStream", "InstagramPost", "InstitutionAccessItem", "InstitutionAccessItemUser", "ManagedUser",
             "NotificationSettings", "OAuthState", "OAuthToken", "Photo", "Placement", "PlaidWebhookEvent", "Product",
-            "ProductImage", "ProductSession", "SavingsGoal", "SiteContentDraft", "SiteContentVersion", "SiteManifest", "Story", "SyncLease", "SyncRun", "TenantDomain",
-            "TenantInvite", "TenantMembership", "TenantModule", "TenantSetting", "TransactionCategory", "TransactionSplit", "User",
+            "ProductImage", "ProductSession", "SavingsGoal", "SiteContentDraft", "SiteContentVersion", "SiteManifest", "Story", "SyncLease", "SyncRun", "TenantContactEmail",
+            "TenantDomain", "TenantEmailCount", "TenantInvite", "TenantMembership", "TenantModule", "TenantSetting", "TransactionCategory", "TransactionSplit", "User",
             "UserAuditLog",
         ];
 

@@ -80,7 +80,8 @@ namespace Elysian.Application.Features.Contact.Commands
     }
 
     public class SendContactMessageCommandHandler(IHumanVerificationService humanVerificationService, IEmailService emailService,
-        ITenantSettings<ResendSettings> resendSettings, ILogger<SendContactMessageCommandHandler> logger)
+        ITenantSettings<ResendSettings> resendSettings, ILogger<SendContactMessageCommandHandler> logger,
+        Elysian.Infrastructure.Context.ElysianContext? context = null)
         : IRequestHandler<SendContactMessageCommand, bool>
     {
         public async Task<bool> Handle(SendContactMessageCommand request, CancellationToken cancellationToken)
@@ -99,10 +100,18 @@ namespace Elysian.Application.Features.Contact.Commands
                 ]);
             }
 
+            // The inbox the site was set up with, or else the address its owner confirmed in the admin app.
+            // Never an address that hasn't been confirmed, and never another site's.
             var toAddress = resendSettings.Value.ToEmailAddress;
+            if (string.IsNullOrWhiteSpace(toAddress) && context != null)
+            {
+                toAddress = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+                    System.Linq.Queryable.Select(Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(context.TenantContactEmails), c => c.Email),
+                    cancellationToken) ?? string.Empty;
+            }
             if (string.IsNullOrWhiteSpace(toAddress))
             {
-                throw new InvalidOperationException($"{ResendSettings.SectionName}:{nameof(ResendSettings.ToEmailAddress)} is not configured.");
+                throw new InvalidOperationException("This site has no contact email yet, so the message wasn't sent. Its owner sets one in the admin app.");
             }
 
             var name = request.Name!.Trim();
