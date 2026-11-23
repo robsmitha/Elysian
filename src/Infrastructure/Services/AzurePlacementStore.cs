@@ -25,6 +25,23 @@ namespace Elysian.Infrastructure.Services
         public string GetPublicUrl(string path) =>
             $"{(imageHost?.ContainerUrl(_settings.ContainerName) ?? _settings.PublicBaseUrl).TrimEnd('/')}/{path.TrimStart('/')}";
 
+        public async Task<IReadOnlyList<string>> DeleteAllAsync(string prefix, CancellationToken cancellationToken = default)
+        {
+            // Only ever a whole folder: an empty prefix would be the whole container
+            if (string.IsNullOrWhiteSpace(prefix) || !prefix.EndsWith('/') || prefix.Trim('/').Length == 0)
+            {
+                throw new ArgumentException("Files are deleted a folder at a time: the prefix must name one and end with a slash.", nameof(prefix));
+            }
+
+            var deleted = new List<string>();
+            await foreach (var blob in clients.Container.GetBlobsAsync(prefix: prefix, cancellationToken: cancellationToken))
+            {
+                await clients.Container.DeleteBlobIfExistsAsync(blob.Name, cancellationToken: cancellationToken);
+                deleted.Add(blob.Name);
+            }
+            return deleted;
+        }
+
         public async Task<PublishedPlacement?> GetPublishedAsync(string path, CancellationToken cancellationToken = default)
         {
             try

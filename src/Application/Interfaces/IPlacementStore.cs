@@ -23,6 +23,12 @@ namespace Elysian.Application.Interfaces
         Task<string> UploadAsync(string path, byte[] content, PlacementMetadata metadata, CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// Deletes every file under <paramref name="prefix"/>, e.g. "friend/" for one tenant's
+        /// </summary>
+        /// <returns>The paths that were deleted</returns>
+        Task<IReadOnlyList<string>> DeleteAllAsync(string prefix, CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Null when another publish holds the lock
         /// </summary>
         Task<IPlacementLock?> TryAcquireLockAsync(string path, CancellationToken cancellationToken = default);

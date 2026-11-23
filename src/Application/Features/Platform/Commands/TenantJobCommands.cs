@@ -24,10 +24,15 @@ namespace Elysian.Application.Features.Platform.Commands
         public async Task<EnqueueTenantJobsResult> Handle(EnqueueTenantJobsCommand request, CancellationToken cancellationToken)
         {
             var job = TenantJobCatalog.Find(request.Job) ?? throw new NotFoundException("Tenant job", request.Job);
+            if (job.OnRequest)
+            {
+                throw new ConflictException($"{job.Key} is queued for one site when it is asked for, never for every site.");
+            }
 
             var tenants = (await tenantStore.GetAllAsync())
                 .Where(t => !string.IsNullOrEmpty(t.Id) && !string.IsNullOrEmpty(t.Identifier))
-                .Where(t => !string.Equals(t.Status, TenantStatusNames.Suspended, StringComparison.OrdinalIgnoreCase))
+                .Where(t => !string.Equals(t.Status, TenantStatusNames.Suspended, StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(t.Status, TenantStatusNames.Deleting, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
             if (job.Module != null)
