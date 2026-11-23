@@ -18,8 +18,10 @@ namespace Elysian.Application.Features.Platform.Commands
 {
     /// <param name="OwnerInviteCode">Give this to the site's owner. Shown once; only its hash is kept.</param>
     /// <param name="TemplateKey">The shared template a cloud site is drawn with; null for a site with its own code</param>
+    /// <param name="Address">The address the site answers on from the start, e.g. friend.example-platform.com; null when it has none yet</param>
     public record CreatedTenant(string Identifier, string Platform, string Runtime, IReadOnlyList<string> Modules,
-        string OwnerInviteCode, DateTimeOffset OwnerInviteExpiresAt, string? TemplateKey = null, int? TemplateVersion = null)
+        string OwnerInviteCode, DateTimeOffset OwnerInviteExpiresAt, string? TemplateKey = null, int? TemplateVersion = null,
+        string? Address = null)
     {
         // Keeps the code out of request logging
         public override string ToString() => $"{nameof(CreatedTenant)} {{ Identifier = {Identifier} }}";
@@ -32,6 +34,9 @@ namespace Elysian.Application.Features.Platform.Commands
     ///
     /// A cloud site is pinned to a shared template: the one asked for, or its platform's default, at the
     /// newest version this host has. A site with its own code has none.
+    ///
+    /// A cloud site also gets its address under its platform's domain (<see cref="PlatformDomainSettings"/>),
+    /// answering and primary, so it can be visited as soon as it exists.
     /// </summary>
     /// <param name="Template">Key of the template for a cloud site. Left out, the platform's default.</param>
     [RequiresPlatformAdmin]
@@ -73,7 +78,8 @@ namespace Elysian.Application.Features.Platform.Commands
 
     public class CreateTenantCommandHandler(PlatformContext platform, IClaimsPrincipalAccessor claimsPrincipalAccessor,
         TimeProvider timeProvider, IOptions<AuthSettings> options, SiteTemplateCatalog? templates = null,
-        IPlacementPublishQueue? publishQueue = null, ILogger<CreateTenantCommandHandler>? logger = null)
+        IPlacementPublishQueue? publishQueue = null, ILogger<CreateTenantCommandHandler>? logger = null,
+        IOptions<PlatformDomainSettings>? domains = null, IEdgeHostMap? hostMap = null)
         : IRequestHandler<CreateTenantCommand, CreatedTenant>
     {
         public const string PublishReason = "site-created";
@@ -154,8 +160,42 @@ namespace Elysian.Application.Features.Platform.Commands
             }, actor, now);
             platform.TenantInvites.Add(invite);
 
+            // Its own name under the platform's domain. The name is the site's alone, so the address is free
+            // unless somebody gave it to another site by hand; then this site is made without one.
+            var address = runtime == RuntimeNames.Cloud ? domains?.Value.AddressFor(definition.Key, identifier) : null;
+            if (address != null && await platform.TenantDomains.AnyAsync(d => d.Host == address, cancellationToken))
+            {
+                logger?.LogWarning("{Address} already belongs to another site, so {Tenant} was created without an address", address, identifier);
+                address = null;
+            }
+            if (address != null)
+            {
+                platform.TenantDomains.Add(PlatformContext.Stamp(new TenantDomain
+                {
+                    TenantId = tenant.Id,
+                    Host = address,
+                    Kind = TenantDomainKinds.Subdomain,
+                    Status = TenantDomainStatuses.Active,
+                    IsPrimary = true,
+                }, actor, now));
+            }
+
             // One save, one transaction: a site either exists completely or not at all
             await platform.SaveChangesAsync(cancellationToken);
+
+            // Tell the edge, so the address answers. The site exists whether or not this works: saving the
+            // address again from the admin app writes it again.
+            if (address != null && hostMap != null)
+            {
+                try
+                {
+                    await hostMap.SyncAsync(identifier, cancellationToken);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    logger?.LogError(ex, "Created {Tenant}, but could not tell the edge about {Address}", identifier, address);
+                }
+            }
 
             // A template's pages point at fixed image addresses from the first visit, so those are written
             // straight away: with no photos yet each one gets its plain frame, and none is ever missing. The
@@ -174,7 +214,7 @@ namespace Elysian.Application.Features.Platform.Commands
             }
 
             return new CreatedTenant(identifier, definition.Key, runtime, definition.IncludedModules, code, invite.ExpiresAt,
-                template?.Key, template?.Version);
+                template?.Key, template?.Version, address);
         }
     }
 

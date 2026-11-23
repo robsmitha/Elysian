@@ -90,6 +90,8 @@ namespace Elysian.Infrastructure
 
             // Who is signed in, and where their roles come from. Hosts serving one site keep the default.
             services.Configure<AuthSettings>(configuration.GetSection(AuthSettings.SectionName));
+            // The domain a platform's new sites get their first address under
+            services.Configure<PlatformDomainSettings>(configuration.GetSection(PlatformDomainSettings.SectionName));
             services.AddSingleton<ITokenValidator>(serviceProvider => new JwtTokenValidator(
                 serviceProvider.GetRequiredService<IOptions<AuthSettings>>(),
                 serviceProvider.GetRequiredService<ILogger<JwtTokenValidator>>()));
