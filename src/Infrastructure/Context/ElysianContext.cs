@@ -62,6 +62,7 @@ namespace Elysian.Infrastructure.Context
         public DbSet<SiteManifest> SiteManifests { get; set; }
         public DbSet<Story> Stories { get; set; }
         public DbSet<SyncRun> SyncRuns { get; set; }
+        public DbSet<TenantDomain> TenantDomains { get; set; }
         public DbSet<TenantInvite> TenantInvites { get; set; }
         public DbSet<TenantMembership> TenantMemberships { get; set; }
         public DbSet<TenantModule> TenantModules { get; set; }

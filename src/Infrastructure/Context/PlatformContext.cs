@@ -16,6 +16,7 @@ namespace Elysian.Infrastructure.Context
         public DbSet<Merchant> Merchants { get; set; }
         public DbSet<MerchantType> MerchantTypes { get; set; }
         public DbSet<ElysianTenantInfo> Tenants { get; set; }
+        public DbSet<TenantDomain> TenantDomains { get; set; }
         public DbSet<TenantInvite> TenantInvites { get; set; }
         public DbSet<TenantMembership> TenantMemberships { get; set; }
         public DbSet<TenantModule> TenantModules { get; set; }
@@ -34,6 +35,7 @@ namespace Elysian.Infrastructure.Context
                 builder.Property(t => t.Platform).HasMaxLength(64);
                 builder.Property(t => t.Runtime).HasMaxLength(64);
                 builder.Property(t => t.Status).HasMaxLength(64);
+                builder.Property(t => t.TemplateKey).HasMaxLength(64);
                 builder.ToTable("TenantInfo");
             });
 
@@ -56,6 +58,12 @@ namespace Elysian.Infrastructure.Context
             modelBuilder.Entity<TenantInvite>(builder =>
             {
                 TenantInvite.Configuration.ConfigureColumns(builder);
+                builder.HasQueryFilter(e => !e.IsDeleted);
+            });
+            // A host is looked up before its tenant is known, and must be unique across all of them
+            modelBuilder.Entity<TenantDomain>(builder =>
+            {
+                TenantDomain.Configuration.ConfigureColumns(builder);
                 builder.HasQueryFilter(e => !e.IsDeleted);
             });
 

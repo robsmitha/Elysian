@@ -14,7 +14,7 @@ namespace Elysian.Domain.Platforms
             "send", "mail", "email", "smtp", "mx", "ns", "ftp",
             "login", "signin", "signup", "auth", "account", "accounts", "billing", "pay", "payments",
             "support", "help", "status", "docs", "blog", "about", "contact", "legal", "terms", "privacy",
-            "site", "sites", "cloud", "platform", "system", "root", "test", "staging", "dev", "demo",
+            "site", "sites", "cloud", "platform", "system", "root", "test", "staging", "dev", "demo", "preview",
         };
 
         [GeneratedRegex("^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$")]
