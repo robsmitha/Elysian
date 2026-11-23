@@ -202,8 +202,100 @@ namespace Elysian.Tests.Platforms
             new(accessor, identity);
 
         private Task<CreatedTenant> CreateAsync(CreateTenantCommand command, SiteTemplateCatalog? templates = null) =>
-            new CreateTenantCommandHandler(platform, admin, TimeProvider.System, Options.Create(settings), templates ?? Templates, publishQueue)
+            new CreateTenantCommandHandler(platform, admin, TimeProvider.System, Options.Create(settings), templates ?? Templates, publishQueue,
+                    domains: Options.Create(domains), hostMap: hostMap)
                 .Handle(command, CancellationToken.None);
+
+        // ---- A new site's address
+
+        private readonly PlatformDomainSettings domains = new();
+        private readonly RecordingHostMap hostMap = new();
+
+        private sealed class RecordingHostMap : IEdgeHostMap
+        {
+            public List<string> Synced { get; } = [];
+            public bool Fail { get; set; }
+
+            public Task SyncAsync(string tenantIdentifier, CancellationToken cancellationToken)
+            {
+                if (Fail)
+                {
+                    throw new InvalidOperationException("The edge could not be reached.");
+                }
+                Synced.Add(tenantIdentifier);
+                return Task.CompletedTask;
+            }
+
+            public Task RemoveAsync(string host, CancellationToken cancellationToken) => Task.CompletedTask;
+        }
+
+        [Fact]
+        public async Task A_cloud_site_answers_on_its_own_name_under_its_platforms_domain_from_the_start()
+        {
+            domains.Domains["Photography"] = " FrameNice.example. ";
+
+            var created = await CreateAsync(new CreateTenantCommand("friend", "Friend", "photography", "cloud"));
+
+            Assert.Equal("friend.framenice.example", created.Address);
+            var domain = await platform.TenantDomains.SingleAsync();
+            Assert.Equal(("friend.framenice.example", TenantDomainKinds.Subdomain, TenantDomainStatuses.Active, true),
+                (domain.Host, domain.Kind, domain.Status, domain.IsPrimary));
+            Assert.Equal((await platform.Tenants.SingleAsync()).Id, domain.TenantId);
+            // The edge is told, so the address answers
+            Assert.Equal(["friend"], hostMap.Synced);
+        }
+
+        [Fact]
+        public async Task A_site_gets_no_address_when_its_platform_has_no_domain_or_it_has_its_own_code()
+        {
+            Assert.Null((await CreateAsync(new CreateTenantCommand("friend", "Friend", "photography", "cloud"))).Address);
+
+            domains.Domains["photography"] = "framenice.example";
+            domains.Domains["personal"] = "personal.example";
+            Assert.Null((await CreateAsync(new CreateTenantCommand("own-code", "Own code", "photography", "custom"))).Address);
+            Assert.Null((await CreateAsync(new CreateTenantCommand("someone", "Someone", "personal", "custom"))).Address);
+
+            Assert.Empty(platform.TenantDomains);
+            Assert.Empty(hostMap.Synced);
+        }
+
+        [Theory]
+        [InlineData("")]
+        [InlineData("not a domain")]
+        [InlineData("https://framenice.example")]
+        [InlineData("framenice.example/path")]
+        public async Task A_domain_that_is_not_one_gives_no_address(string configured)
+        {
+            domains.Domains["photography"] = configured;
+
+            Assert.Null((await CreateAsync(new CreateTenantCommand("friend", "Friend", "photography", "cloud"))).Address);
+            Assert.Empty(platform.TenantDomains);
+        }
+
+        [Fact]
+        public async Task A_site_is_still_created_when_the_edge_cannot_be_told_or_its_address_is_taken()
+        {
+            domains.Domains["photography"] = "framenice.example";
+
+            hostMap.Fail = true;
+            var first = await CreateAsync(new CreateTenantCommand("friend", "Friend", "photography", "cloud"));
+            Assert.Equal("friend.framenice.example", first.Address);
+            Assert.Single(platform.TenantDomains);
+
+            // Somebody gave the next site's address to this one by hand
+            hostMap.Fail = false;
+            platform.TenantDomains.Add(PlatformContext.Stamp(new TenantDomain
+            {
+                TenantId = (await platform.Tenants.SingleAsync()).Id!, Host = "other.framenice.example",
+                Kind = TenantDomainKinds.Custom, Status = TenantDomainStatuses.Active,
+            }, "seed", DateTimeOffset.UtcNow));
+            await platform.SaveChangesAsync();
+
+            var second = await CreateAsync(new CreateTenantCommand("other", "Other", "photography", "cloud"));
+            Assert.Null(second.Address);
+            Assert.Equal(2, await platform.Tenants.CountAsync());
+            Assert.Equal(2, await platform.TenantDomains.CountAsync());
+        }
 
         private readonly RecordingPublishQueue publishQueue = new();
 
