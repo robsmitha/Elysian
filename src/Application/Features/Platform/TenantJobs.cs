@@ -14,7 +14,8 @@ namespace Elysian.Application.Features.Platform
     /// </summary>
     /// <param name="Module">The module a tenant needs for the job to be queued for it; null runs it for every tenant</param>
     /// <param name="CreateRequest">The request that does the work, sent inside the tenant</param>
-    public record TenantJobDefinition(string Key, string? Module, Func<IBaseRequest> CreateRequest);
+    /// <param name="OnRequest">Queued for one tenant by something that asked for it, never for every tenant on a timer</param>
+    public record TenantJobDefinition(string Key, string? Module, Func<IBaseRequest> CreateRequest, bool OnRequest = false);
 
     public static class TenantJobCatalog
     {
@@ -22,11 +23,15 @@ namespace Elysian.Application.Features.Platform
         public const string InstagramTokenRefresh = "instagram-token-refresh";
         public const string CalendarHealth = "calendar-health";
 
+        /// <summary>The queued half of deleting a site (see DeleteTenantCommand)</summary>
+        public const string DeleteSite = "delete-site";
+
         public static readonly IReadOnlyList<TenantJobDefinition> All =
         [
             new(InstagramSync, ModuleNames.Instagram, () => new SyncInstagramPostsCommand()),
             new(InstagramTokenRefresh, ModuleNames.Instagram, () => new RefreshInstagramTokenCommand()),
             new(CalendarHealth, ModuleNames.Booking, () => new CheckGoogleCalendarHealthCommand()),
+            new(DeleteSite, null, () => new Commands.PurgeSiteCommand(), OnRequest: true),
         ];
 
         public static TenantJobDefinition? Find(string? key) =>

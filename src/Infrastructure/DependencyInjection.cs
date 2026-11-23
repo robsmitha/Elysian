@@ -82,6 +82,8 @@ namespace Elysian.Infrastructure
             services.AddDbContext<PlatformContext>(options => options
                 .UseSqlServer(configuration.GetConnectionString("DefaultConnection"))
                 .AddInterceptors(new TenantSessionContextInterceptor(bypass: true)));
+            // Removing a deleted site's rows, across its tables, on that connection
+            services.AddScoped<ITenantDataEraser, SqlTenantDataEraser>();
             services.Configure<EdgeSettings>(configuration.GetSection(EdgeSettings.SectionName));
             services.AddScoped<IEdgeClientValidator, EdgeClientValidator>();
 

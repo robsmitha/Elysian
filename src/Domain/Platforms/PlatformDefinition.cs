@@ -20,6 +20,12 @@ namespace Elysian.Domain.Platforms
         public const string Trial = "trial";
         public const string Active = "active";
         public const string Suspended = "suspended";
+
+        /// <summary>
+        /// On its way out: it answers nowhere, and a queued job is removing its files and rows. Set only by
+        /// deleting a site, and never set back.
+        /// </summary>
+        public const string Deleting = "deleting";
     }
 
     /// <summary>

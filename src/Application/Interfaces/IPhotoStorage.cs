@@ -10,6 +10,17 @@ namespace Elysian.Application.Interfaces
         Task DeleteOriginalAsync(string blobName, CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// Deletes every original under <paramref name="prefix"/>, e.g. "friend/" for one tenant's
+        /// </summary>
+        /// <returns>How many were deleted</returns>
+        Task<int> DeleteOriginalsAsync(string prefix, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// A read-only link to one original that stops working after <paramref name="lifetime"/>
+        /// </summary>
+        Task<Uri> CreateOriginalDownloadUriAsync(string blobName, TimeSpan lifetime, CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Uploads an optimized variant with long-lived immutable cache headers
         /// </summary>
         Task UploadVariantAsync(string blobName, byte[] content, string contentType, CancellationToken cancellationToken = default);

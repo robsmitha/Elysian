@@ -280,6 +280,11 @@ namespace Elysian.Application.Features.Platform.Commands
             var tenant = await platform.Tenants.FirstOrDefaultAsync(t => t.Identifier == identifier, cancellationToken)
                 ?? throw new NotFoundException("Site", identifier);
 
+            if (tenant.Status == TenantStatusNames.Deleting)
+            {
+                throw new ConflictException("This site is being deleted, so its status can't be changed.");
+            }
+
             tenant.Status = SetTenantStatusCommandValidator.Status(request.Status)!;
             await platform.SaveChangesAsync(cancellationToken);
 
