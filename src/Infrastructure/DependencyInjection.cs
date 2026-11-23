@@ -6,6 +6,7 @@ using Azure.Storage.Blobs;
 using CapitolSharp.Congress;
 using Elysian.Application.Features.Booking;
 using Elysian.Application.Features.Placements;
+using Elysian.Application.Features.SiteContent;
 using Elysian.Application.Features.Sites;
 using Elysian.Application.Features.UserManagement;
 using Elysian.Application.Interfaces;
@@ -211,6 +212,25 @@ namespace Elysian.Infrastructure
                     return new BlobServiceClient(azureStorageSettings.Value.ConnectionString);
                 })
                 .AddScoped<IAzureStorageClient, AzureStorageClient>();
+        }
+
+        /// <summary>
+        /// Site content: what an owner changes within a shared template (colours, wording, links), edited as a
+        /// draft and published to the edge. Pass the template schemas this host was built with. Editing works
+        /// with nothing else configured; previews need StoryPreview:SigningKey, and publishing needs an
+        /// <see cref="ISiteContentEdge"/> registered before or after this call.
+        /// </summary>
+        public static IServiceCollection AddSiteContentFeatures(this IServiceCollection services, IConfiguration configuration,
+            SiteTemplateCatalog? templates = null)
+        {
+            services.AddSingleton(templates ?? new SiteTemplateCatalog());
+            services.AddScoped<SiteContentReader>();
+
+            services.Configure<StoryPreviewSettings>(configuration.GetSection(StoryPreviewSettings.SectionName));
+            services.TryAddSingleton(TimeProvider.System);
+            services.TryAddSingleton<ISitePreviewTokens, HmacSitePreviewTokens>();
+            services.TryAddScoped<ISiteContentEdge, UnconfiguredSiteContentEdge>();
+            return services;
         }
 
         /// <summary>

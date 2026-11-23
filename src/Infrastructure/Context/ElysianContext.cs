@@ -59,6 +59,8 @@ namespace Elysian.Infrastructure.Context
         public DbSet<ProductImage> ProductImages { get; set; }
         public DbSet<ProductSession> ProductSessions { get; set; }
         public DbSet<ProductType> ProductTypes { get; set; }
+        public DbSet<SiteContentDraft> SiteContentDrafts { get; set; }
+        public DbSet<SiteContentVersion> SiteContentVersions { get; set; }
         public DbSet<SiteManifest> SiteManifests { get; set; }
         public DbSet<Story> Stories { get; set; }
         public DbSet<SyncRun> SyncRuns { get; set; }

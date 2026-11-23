@@ -21,7 +21,7 @@ namespace Elysian.Tests.Platforms
         /// Features whose handlers must be constructible with nothing configured. Add-ons a tenant may never
         /// buy belong here; a handler that can't even be built would take the whole request pipeline down.
         /// </summary>
-        private static readonly string[] MustResolveUnconfigured = ["Booking", "GoogleCalendar", "Instagram", "Contact", "Stories"];
+        private static readonly string[] MustResolveUnconfigured = ["Booking", "GoogleCalendar", "Instagram", "Contact", "Stories", "SiteContent"];
 
         private const string CatalogJson = """
             {
@@ -55,6 +55,7 @@ namespace Elysian.Tests.Platforms
             services.AddUserManagementFeatures(configuration);
             services.AddInstagramFeatures(configuration);
             services.AddBookingFeatures(configuration);
+            services.AddSiteContentFeatures(configuration);
             services.AddApplication();
 
             return (services, services.BuildServiceProvider());
