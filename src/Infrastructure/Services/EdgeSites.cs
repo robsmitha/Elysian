@@ -21,7 +21,7 @@ namespace Elysian.Infrastructure.Services
     {
         /// <summary>
         /// "host:{host}": which tenant an address belongs to and what to serve for it. JSON:
-        /// <c>{ tenant, status, template, templateVersion, contentVersion, primaryHost }</c>.
+        /// <c>{ tenant, status, template, templateVersion, contentVersion, primaryHost, modules }</c>.
         /// contentVersion is null until the site has published; primaryHost is where every other address
         /// redirects to.
         /// </summary>
@@ -98,6 +98,14 @@ namespace Elysian.Infrastructure.Services
             }
 
             var primaryHost = domains.FirstOrDefault(d => d.IsPrimary)?.Host ?? domains.OrderBy(d => d.Host, StringComparer.Ordinal).First().Host;
+
+            // What the site may show: a page that belongs to a module is only drawn for a site that has it
+            var modules = (await platform.TenantModules.AsNoTracking()
+                    .Where(m => m.TenantId == tenant.Id && m.Status != TenantModuleStatus.Suspended)
+                    .Select(m => m.ModuleKey)
+                    .ToListAsync(cancellationToken))
+                .Order(StringComparer.Ordinal)
+                .ToList();
             var entry = JsonSerializer.Serialize(new
             {
                 tenant = tenant.Identifier,
@@ -106,6 +114,7 @@ namespace Elysian.Infrastructure.Services
                 templateVersion = tenant.TemplateVersion,
                 contentVersion = contentVersion ?? tenant.ContentVersion,
                 primaryHost,
+                modules,
             }, JsonOptions);
 
             // The primary address last: if a write fails partway, the address visitors are sent to still
