@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace Elysian.Application.Features.GoogleCalendar.Queries
 {
     /// <summary>
-    /// Connection status for the admin Calendar page, checked live against Google (and recorded as validated when it works)
+    /// Connection status for the admin app, checked live against Google (and recorded as validated when it works)
     /// </summary>
     [Authorize(Policy = PolicyNames.PhotoRead)]
     public record GetGoogleCalendarConnectionQuery : IRequest<GoogleCalendarConnectionModel>;
