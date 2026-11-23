@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Elysian.Application.Behaviors;
 using Elysian.Application.Exceptions;
 using Elysian.Application.Features.Platform.Commands;
+using Elysian.Application.Features.SiteContent;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
 using Elysian.Domain.Platforms;
@@ -53,6 +54,10 @@ namespace Elysian.Tests.Platforms
             Assert.Equal(PlatformNames.Photography, tenant.Platform);
             Assert.Equal(RuntimeNames.Cloud, tenant.Runtime);
             Assert.Equal(TenantStatusNames.Active, tenant.Status);
+            // A cloud site starts on its platform's default template, at the newest version the host has
+            Assert.Equal(("classic", 2), (tenant.TemplateKey, tenant.TemplateVersion));
+            Assert.Equal(("classic", 2), (created.TemplateKey, created.TemplateVersion));
+            Assert.Null(tenant.ContentVersion);
 
             var merchant = await platform.Merchants.SingleAsync();
             Assert.Equal("friend-photo", merchant.MerchantIdentifier);
@@ -196,8 +201,86 @@ namespace Elysian.Tests.Platforms
         private static AuthorizationBehavior<CreateTenantCommand, CreatedTenant> Behavior(IClaimsPrincipalAccessor accessor, IIdentityService identity) =>
             new(accessor, identity);
 
-        private Task<CreatedTenant> CreateAsync(CreateTenantCommand command) =>
-            new CreateTenantCommandHandler(platform, admin, TimeProvider.System, Options.Create(settings)).Handle(command, CancellationToken.None);
+        private Task<CreatedTenant> CreateAsync(CreateTenantCommand command, SiteTemplateCatalog? templates = null) =>
+            new CreateTenantCommandHandler(platform, admin, TimeProvider.System, Options.Create(settings), templates ?? Templates)
+                .Handle(command, CancellationToken.None);
+
+        private static string TemplateJson(string key, int version) => $$"""
+            {
+              "key": "{{key}}", "version": {{version}}, "name": "{{key}}",
+              "palettes": [ { "key": "paper", "name": "Paper", "background": "#ffffff", "surface": "#f3f5f7", "text": "#16181d", "muted": "#4a5160", "accent": "#1f5f4f", "onAccent": "#ffffff" } ],
+              "fonts": [ { "key": "sans", "name": "Sans" } ],
+              "fields": [],
+              "links": [],
+              "categories": [ { "slug": "weddings", "name": "Weddings" } ]
+            }
+            """;
+
+        private static readonly SiteTemplateCatalog Templates =
+            SiteTemplateCatalog.FromJson(TemplateJson("classic", 1), TemplateJson("classic", 2), TemplateJson("gallery", 1));
+
+        // ---- Templates
+
+        [Fact]
+        public async Task A_cloud_site_can_ask_for_a_template_by_name()
+        {
+            var created = await CreateAsync(new CreateTenantCommand("friend", "Friend", "photography", "cloud", Template: " Gallery "));
+            Assert.Equal(("gallery", 1), (created.TemplateKey, created.TemplateVersion));
+        }
+
+        [Fact]
+        public async Task A_cloud_site_is_not_created_without_a_template_to_draw_it()
+        {
+            var unknown = await Assert.ThrowsAsync<CustomValidationException>(() =>
+                CreateAsync(new CreateTenantCommand("friend", "Friend", "photography", "cloud", Template: "brutalist")));
+            Assert.Contains("brutalist", unknown.Errors["Template"].Single());
+
+            await Assert.ThrowsAsync<CustomValidationException>(() =>
+                CreateAsync(new CreateTenantCommand("friend", "Friend", "photography", "cloud"), new SiteTemplateCatalog()));
+
+            Assert.Empty(await platform.Tenants.ToListAsync());
+            Assert.Empty(await platform.Merchants.ToListAsync());
+        }
+
+        [Fact]
+        public async Task A_site_with_its_own_code_has_no_template()
+        {
+            var created = await CreateAsync(new CreateTenantCommand("someone", "Someone", "photography", "custom"));
+            Assert.Null(created.TemplateKey);
+            Assert.Null((await platform.Tenants.SingleAsync()).TemplateKey);
+
+            await Assert.ThrowsAsync<CustomValidationException>(() =>
+                CreateAsync(new CreateTenantCommand("another", "Another", "photography", "custom", Template: "classic")));
+        }
+
+        // ---- Listing
+
+        [Fact]
+        public async Task Every_site_is_listed_with_what_an_operator_needs_to_see()
+        {
+            await CreateAsync(new CreateTenantCommand("zebra", "Zebra Photo", "photography", "cloud"));
+            await CreateAsync(new CreateTenantCommand("apple", "Apple Studio", "photography", "custom"));
+
+            var zebra = await platform.Tenants.SingleAsync(t => t.Identifier == "zebra");
+            zebra.ContentVersion = 3;
+            platform.TenantDomains.Add(PlatformContext.Stamp(new TenantDomain
+            {
+                TenantId = zebra.Id!, Host = "zebra.framenice.com", Kind = TenantDomainKinds.Subdomain, Status = TenantDomainStatuses.Active, IsPrimary = true,
+            }, "seed", DateTimeOffset.UtcNow));
+            platform.TenantDomains.Add(PlatformContext.Stamp(new TenantDomain
+            {
+                TenantId = zebra.Id!, Host = "www.zebraphoto.com", Kind = TenantDomainKinds.Custom, Status = TenantDomainStatuses.Pending, IsPrimary = false,
+            }, "seed", DateTimeOffset.UtcNow));
+            await platform.SaveChangesAsync();
+
+            var tenants = await new GetTenantsQueryHandler(platform).Handle(new GetTenantsQuery(), CancellationToken.None);
+
+            Assert.Equal(["apple", "zebra"], tenants.Select(t => t.Identifier));
+            Assert.Equal(new TenantSummary("zebra", "Zebra Photo", "photography", "cloud", "active", "classic", 2, 3, "zebra.framenice.com", [ModuleNames.Photos]) with { Modules = tenants[1].Modules }, tenants[1]);
+            Assert.Equal([ModuleNames.Photos], tenants[1].Modules);
+            Assert.Null(tenants[0].PrimaryHost);
+            Assert.Null(tenants[0].TemplateKey);
+        }
 
         private string AddClient(string name, EdgeClientScope scope, string? platformKey = null)
         {
