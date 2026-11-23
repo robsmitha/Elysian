@@ -177,7 +177,8 @@ namespace Elysian.Tests.Sites
         [InlineData("\"slug\": \"families\", \"name\": \"Families\", \"hasGallery\"", "\"slug\": \"pets\", \"name\": \"Pets\", \"hasGallery\"", "different categories")]
         [InlineData("\"siteDefaultKey\": \"site-default\"", "\"siteDefaultKey\": \"nowhere\"", "isn't one of the manifest's spots")]
         [InlineData("{ \"key\": \"home-hero\", \"label\": \"Hero\", \"page\": \"home\" },", "", "isn't one of the manifest's spots")]
-        [InlineData("\"version\": 1,\n  \"site\"", "\"version\": 7,\n  \"site\"", "isn't supported")]
+        // No line break in the text to find: the file may be checked out with either kind
+        [InlineData("\"version\": 1,", "\"version\": 7,", "isn't supported")]
         public void A_template_manifest_with_a_mistake_stops_the_host_with_the_reason(string find, string replace, string expected)
         {
             Assert.Contains(find, Manifest);

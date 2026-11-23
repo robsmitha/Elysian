@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Elysian.Application.Behaviors;
 using Elysian.Application.Exceptions;
 using Elysian.Application.Features.Platform.Commands;
@@ -202,8 +202,75 @@ namespace Elysian.Tests.Platforms
             new(accessor, identity);
 
         private Task<CreatedTenant> CreateAsync(CreateTenantCommand command, SiteTemplateCatalog? templates = null) =>
-            new CreateTenantCommandHandler(platform, admin, TimeProvider.System, Options.Create(settings), templates ?? Templates)
+            new CreateTenantCommandHandler(platform, admin, TimeProvider.System, Options.Create(settings), templates ?? Templates, publishQueue)
                 .Handle(command, CancellationToken.None);
+
+        private readonly RecordingPublishQueue publishQueue = new();
+
+        private sealed class RecordingPublishQueue : Elysian.Application.Interfaces.IPlacementPublishQueue
+        {
+            public List<Elysian.Application.Features.Placements.Models.PlacementPublishMessage> Sent { get; } = [];
+            public bool Fail { get; set; }
+
+            public Task EnqueueAsync(string reason, bool force = false) => throw new NotSupportedException("There is no current tenant when a site is created");
+
+            public Task SendAsync(Elysian.Application.Features.Placements.Models.PlacementPublishMessage message, TimeSpan? delay = null, CancellationToken cancellationToken = default)
+            {
+                if (Fail)
+                {
+                    throw new InvalidOperationException("The queue could not be reached.");
+                }
+                Sent.Add(message);
+                return Task.CompletedTask;
+            }
+        }
+
+        private const string TemplateManifest = """
+            {
+              "version": 1,
+              "site": { "name": "", "publicUrl": "" },
+              "categories": [ { "slug": "weddings", "name": "Weddings" } ],
+              "pages": [ { "key": "home", "name": "Home", "path": "/" } ],
+              "spots": [ { "key": "home-hero", "label": "Hero", "page": "home" }, { "key": "site-default", "label": "Fallback", "page": "home" } ],
+              "placements": { "recipeVersion": 1, "siteDefaultKey": "site-default", "slots": [ { "key": "home-hero", "name": "home-hero", "ratio": 2.2, "widths": [640], "alt": "Featured" } ] }
+            }
+            """;
+
+        private static readonly SiteTemplateCatalog TemplatesWithImages =
+            SiteTemplateCatalog.FromFiles([(TemplateJson("classic", 1), TemplateManifest)]);
+
+        // ---- A new site's images
+
+        [Fact]
+        public async Task A_new_cloud_sites_images_are_published_straight_away()
+        {
+            await CreateAsync(new CreateTenantCommand("friend", "Friend", "photography", "cloud"), TemplatesWithImages);
+
+            var message = Assert.Single(publishQueue.Sent);
+            Assert.Equal("friend", message.Tenant);
+            Assert.Equal(CreateTenantCommandHandler.PublishReason, message.Reason);
+            Assert.True(message.Force);
+        }
+
+        [Fact]
+        public async Task Nothing_is_published_for_a_site_with_no_reserved_images()
+        {
+            // Its own code, or a template that ships no manifest
+            await CreateAsync(new CreateTenantCommand("someone", "Someone", "photography", "custom"), TemplatesWithImages);
+            await CreateAsync(new CreateTenantCommand("friend", "Friend", "photography", "cloud"));
+
+            Assert.Empty(publishQueue.Sent);
+        }
+
+        [Fact]
+        public async Task A_site_is_still_created_when_its_first_publish_cannot_be_queued()
+        {
+            publishQueue.Fail = true;
+            var created = await CreateAsync(new CreateTenantCommand("friend", "Friend", "photography", "cloud"), TemplatesWithImages);
+
+            Assert.Equal("friend", created.Identifier);
+            Assert.Single(await platform.Tenants.ToListAsync());
+        }
 
         private static string TemplateJson(string key, int version) => $$"""
             {

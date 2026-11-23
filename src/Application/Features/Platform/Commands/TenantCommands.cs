@@ -1,4 +1,5 @@
 using Elysian.Application.Exceptions;
+using Elysian.Application.Features.Placements.Models;
 using Elysian.Application.Features.SiteContent;
 using Elysian.Application.Features.UserManagement;
 using Elysian.Application.Interfaces;
@@ -10,6 +11,7 @@ using Elysian.Infrastructure.Settings;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Elysian.Application.Features.Platform.Commands
@@ -70,9 +72,12 @@ namespace Elysian.Application.Features.Platform.Commands
     }
 
     public class CreateTenantCommandHandler(PlatformContext platform, IClaimsPrincipalAccessor claimsPrincipalAccessor,
-        TimeProvider timeProvider, IOptions<AuthSettings> options, SiteTemplateCatalog? templates = null)
+        TimeProvider timeProvider, IOptions<AuthSettings> options, SiteTemplateCatalog? templates = null,
+        IPlacementPublishQueue? publishQueue = null, ILogger<CreateTenantCommandHandler>? logger = null)
         : IRequestHandler<CreateTenantCommand, CreatedTenant>
     {
+        public const string PublishReason = "site-created";
+
         public async Task<CreatedTenant> Handle(CreateTenantCommand request, CancellationToken cancellationToken)
         {
             var identifier = TenantIdentifiers.Normalize(request.Identifier);
@@ -151,6 +156,22 @@ namespace Elysian.Application.Features.Platform.Commands
 
             // One save, one transaction: a site either exists completely or not at all
             await platform.SaveChangesAsync(cancellationToken);
+
+            // A template's pages point at fixed image addresses from the first visit, so those are written
+            // straight away: with no photos yet each one gets its plain frame, and none is ever missing. The
+            // site exists whether or not this is queued; a publish that didn't happen shows in the admin app
+            // as photos not yet published, with a button to try again.
+            if (template?.ManifestJson != null && publishQueue != null)
+            {
+                try
+                {
+                    await publishQueue.SendAsync(new PlacementPublishMessage(identifier, PublishReason, Force: true), cancellationToken: cancellationToken);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    logger?.LogError(ex, "Created {Tenant}, but could not queue the first publish of its images", identifier);
+                }
+            }
 
             return new CreatedTenant(identifier, definition.Key, runtime, definition.IncludedModules, code, invite.ExpiresAt,
                 template?.Key, template?.Version);
