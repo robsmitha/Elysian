@@ -256,19 +256,36 @@ namespace Elysian.Application.Features.Booking.Commands
             var details = new BookingEmails.Details(row.Product.Name, row.Session.DurationMinutes, row.Product.Price, row.Product.IsPriceFrom(),
                 row.Session.Location, start, name, email, phone, message, referral);
 
+            // A site with no inbox of its own in its settings uses the address its owner confirmed in the
+            // admin app: bookings are sent there, and a client's reply goes there
+            string? confirmed = null;
+            if (BookingEmails.OwnerAddress(booking, resendOptions.Value) == null)
+            {
+                try
+                {
+                    confirmed = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+                        context.TenantContactEmails.Select(c => c.Email), cancellationToken);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+                {
+                    logger.LogError(ex, "The site's contact email couldn't be read for a booking's emails");
+                }
+            }
+
             try
             {
-                await emailService.SendAsync(BookingEmails.ToClient(details, clientTimeZone ?? availabilityService.Rules.TimeZone, booking), cancellationToken);
+                var toClient = BookingEmails.ToClient(details, clientTimeZone ?? availabilityService.Rules.TimeZone, booking);
+                await emailService.SendAsync(toClient with { ReplyTo = toClient.ReplyTo ?? confirmed }, cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
                 logger.LogError(ex, "Booking confirmation email to the client failed for {Slug} at {Start:O}", row.Product.SerialNumber, start);
             }
 
-            var owner = BookingEmails.OwnerAddress(booking, resendOptions.Value);
+            var owner = BookingEmails.OwnerAddress(booking, resendOptions.Value) ?? (string.IsNullOrWhiteSpace(confirmed) ? null : confirmed);
             if (owner == null)
             {
-                logger.LogWarning("No booking notification address is configured (Booking:NotificationEmailAddress or Resend:ToEmailAddress)");
+                logger.LogWarning("No booking notification address is configured (Booking:NotificationEmailAddress, Resend:ToEmailAddress or a confirmed contact email)");
                 return;
             }
 

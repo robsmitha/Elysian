@@ -258,9 +258,15 @@ namespace Elysian.Application.Features.Platform.Commands
     [RequiresPlatformAdmin]
     public record SetTenantModuleCommand(string? Identifier, string? Module, bool Enabled, string? BillingReference = null) : IRequest;
 
-    public class SetTenantModuleCommandHandler(PlatformContext platform, IClaimsPrincipalAccessor claimsPrincipalAccessor, TimeProvider timeProvider)
-        : IRequestHandler<SetTenantModuleCommand>
+    public class SetTenantModuleCommandHandler(PlatformContext platform, IClaimsPrincipalAccessor claimsPrincipalAccessor, TimeProvider timeProvider,
+        IEdgeHostMap? edgeHostMap = null) : IRequestHandler<SetTenantModuleCommand>
     {
+        /// <summary>
+        /// A cloud site's pages follow its modules, and the edge is what draws them
+        /// </summary>
+        private Task SyncEdgeAsync(string identifier, CancellationToken cancellationToken) =>
+            edgeHostMap?.SyncAsync(identifier, cancellationToken) ?? Task.CompletedTask;
+
         public async Task Handle(SetTenantModuleCommand request, CancellationToken cancellationToken)
         {
             var identifier = TenantIdentifiers.Normalize(request.Identifier);
@@ -282,6 +288,7 @@ namespace Elysian.Application.Features.Platform.Commands
                     row.ModifiedByUserId = actor;
                     row.ModifiedAt = now;
                     await platform.SaveChangesAsync(cancellationToken);
+                    await SyncEdgeAsync(identifier, cancellationToken);
                 }
                 return;
             }
@@ -303,6 +310,7 @@ namespace Elysian.Application.Features.Platform.Commands
             row.ModifiedByUserId = actor;
             row.ModifiedAt = now;
             await platform.SaveChangesAsync(cancellationToken);
+            await SyncEdgeAsync(identifier, cancellationToken);
         }
     }
 }

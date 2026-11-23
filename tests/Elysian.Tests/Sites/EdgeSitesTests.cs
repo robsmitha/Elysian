@@ -82,6 +82,25 @@ namespace Elysian.Tests.Sites
         }
 
         [Fact]
+        public async Task The_edge_is_told_which_modules_a_site_has_and_again_when_they_change()
+        {
+            await AddAsync("friend", "friend.framenice.com", "subdomain");
+            Assert.Empty(Json(store.Values["host:friend.framenice.com"]).GetProperty("modules").EnumerateArray());
+
+            var handler = new SetTenantModuleCommandHandler(platform, admin, TimeProvider.System, Edge());
+            await handler.Handle(new SetTenantModuleCommand("friend", "booking", true), CancellationToken.None);
+            await handler.Handle(new SetTenantModuleCommand("friend", "photos", true), CancellationToken.None);
+
+            Assert.Equal(["booking", "photos"],
+                Json(store.Values["host:friend.framenice.com"]).GetProperty("modules").EnumerateArray().Select(m => m.GetString()));
+
+            await handler.Handle(new SetTenantModuleCommand("friend", "booking", false), CancellationToken.None);
+
+            Assert.Equal(["photos"],
+                Json(store.Values["host:friend.framenice.com"]).GetProperty("modules").EnumerateArray().Select(m => m.GetString()));
+        }
+
+        [Fact]
         public async Task A_site_with_no_address_can_still_publish()
         {
             await Edge().PointToVersionAsync("friend", 5, CancellationToken.None);
