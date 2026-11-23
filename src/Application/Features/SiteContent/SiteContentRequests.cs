@@ -1,4 +1,5 @@
 using Elysian.Application.Exceptions;
+using Elysian.Application.Features.Sites;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Data;
 using Elysian.Domain.Security;
@@ -56,7 +57,7 @@ namespace Elysian.Application.Features.SiteContent
     [Authorize(Policy = PolicyNames.SiteWrite)]
     public record SaveSiteContentDraftCommand(SiteContentDocument? Content) : IRequest<SiteContentDocument>;
 
-    public class SaveSiteContentDraftCommandHandler(ElysianContext context, SiteContentReader reader)
+    public class SaveSiteContentDraftCommandHandler(ElysianContext context, SiteContentReader reader, SiteManifestReader? manifests = null)
         : IRequestHandler<SaveSiteContentDraftCommand, SiteContentDocument>
     {
         public async Task<SiteContentDocument> Handle(SaveSiteContentDraftCommand request, CancellationToken cancellationToken)
@@ -75,6 +76,9 @@ namespace Elysian.Application.Features.SiteContent
             row.TemplateKey = template.Key;
             row.TemplateVersion = template.Version;
             await context.SaveChangesAsync(cancellationToken);
+
+            // The site's manifest carries the owner's category names, which may just have changed
+            manifests?.Invalidate();
             return content;
         }
     }
