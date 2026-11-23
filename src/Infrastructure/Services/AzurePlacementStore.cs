@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace Elysian.Infrastructure.Services
 {
-    public class AzurePlacementStore(PlacementStorageClients clients, IOptions<PlacementPublishingSettings> settings) : IPlacementStore
+    public class AzurePlacementStore(PlacementStorageClients clients, IOptions<PlacementPublishingSettings> settings, TenantImageHost? imageHost = null) : IPlacementStore
     {
         private const string FingerprintKey = "fingerprint";
         private const string SourceKey = "source";
@@ -21,7 +21,9 @@ namespace Elysian.Infrastructure.Services
 
         private readonly PlacementPublishingSettings _settings = settings.Value;
 
-        public string GetPublicUrl(string path) => $"{_settings.PublicBaseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
+        // A site drawn with a template is served from the platform's images host, and that is the address purged
+        public string GetPublicUrl(string path) =>
+            $"{(imageHost?.ContainerUrl(_settings.ContainerName) ?? _settings.PublicBaseUrl).TrimEnd('/')}/{path.TrimStart('/')}";
 
         public async Task<PublishedPlacement?> GetPublishedAsync(string path, CancellationToken cancellationToken = default)
         {

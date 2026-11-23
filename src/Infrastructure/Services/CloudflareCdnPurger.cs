@@ -14,16 +14,34 @@ namespace Elysian.Infrastructure.Services
     /// <summary>
     /// Purge by URL: POST /zones/{zone_id}/purge_cache {"files": [...]}. The Free plan allows 100 URLs per request
     /// and 800 URLs per second (checked October 2026), so most publishes are one request.
+    ///
+    /// A URL is purged from the zone it is in: the platform's images host has its own zone and token
+    /// (<see cref="PlatformImagesSettings"/>); everything else is in the host's own ("Cloudflare").
     /// </summary>
-    public class CloudflareCdnPurger(HttpClient httpClient, IOptions<CloudflareSettings> settings, ILogger<CloudflareCdnPurger> logger)
-        : ICdnPurger
+    public class CloudflareCdnPurger(HttpClient httpClient, IOptions<CloudflareSettings> settings, ILogger<CloudflareCdnPurger> logger,
+        IOptions<PlatformImagesSettings>? platformImages = null) : ICdnPurger
     {
         private const int MaxUrlsPerRequest = 100;
         private const int MaxAttempts = 4;
 
         private readonly CloudflareSettings _settings = settings.Value;
+        private readonly PlatformImagesSettings? _platform = platformImages?.Value;
 
-        public bool IsConfigured => _settings.IsConfigured;
+        public bool IsConfigured => _settings.IsConfigured || _platform?.CanPurge == true;
+
+        private sealed record Zone(string Id, string Token);
+
+        /// <summary>
+        /// The zone a URL is purged from, or null when this host has no way to purge it
+        /// </summary>
+        private Zone? ZoneFor(string url)
+        {
+            if (_platform?.Origin is { } origin && url.StartsWith(origin + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                return _platform.CanPurge ? new Zone(_platform.CloudflareZoneId!, _platform.CloudflareApiToken!) : null;
+            }
+            return _settings.IsConfigured ? new Zone(_settings.ZoneId!, _settings.ApiToken!) : null;
+        }
 
         public async Task PurgeAsync(IReadOnlyCollection<string> urls, CancellationToken cancellationToken = default)
         {
@@ -32,18 +50,26 @@ namespace Elysian.Infrastructure.Services
                 return;
             }
 
-            if (!IsConfigured)
+            var purged = 0;
+            foreach (var group in urls.GroupBy(ZoneFor))
             {
-                logger.LogWarning("Cloudflare is not configured; skipping purge of {Count} URLs", urls.Count);
-                return;
+                if (group.Key == null)
+                {
+                    logger.LogWarning("Cloudflare is not configured for {Example}; skipping purge of {Count} URLs", group.First(), group.Count());
+                    continue;
+                }
+
+                foreach (var chunk in group.Chunk(MaxUrlsPerRequest))
+                {
+                    await PurgeChunkAsync(group.Key, chunk, cancellationToken);
+                    purged += chunk.Length;
+                }
             }
 
-            foreach (var chunk in urls.Chunk(MaxUrlsPerRequest))
+            if (purged > 0)
             {
-                await PurgeChunkAsync(chunk, cancellationToken);
+                logger.LogInformation("Purged {Count} URLs from Cloudflare", purged);
             }
-
-            logger.LogInformation("Purged {Count} URLs from Cloudflare", urls.Count);
         }
 
         /// <summary>
@@ -75,15 +101,15 @@ namespace Elysian.Infrastructure.Services
             return stale;
         }
 
-        private async Task PurgeChunkAsync(string[] files, CancellationToken cancellationToken)
+        private async Task PurgeChunkAsync(Zone zone, string[] files, CancellationToken cancellationToken)
         {
             for (var attempt = 1; ; attempt++)
             {
-                using var request = new HttpRequestMessage(HttpMethod.Post, $"zones/{_settings.ZoneId}/purge_cache")
+                using var request = new HttpRequestMessage(HttpMethod.Post, $"zones/{zone.Id}/purge_cache")
                 {
                     Content = JsonContent.Create(new { files }),
                 };
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.ApiToken);
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", zone.Token);
 
                 TimeSpan? retryAfter = null;
                 try
