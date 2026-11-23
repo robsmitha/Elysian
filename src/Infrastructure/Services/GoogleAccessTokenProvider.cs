@@ -20,7 +20,7 @@ namespace Elysian.Infrastructure.Services
         {
             var token = await tokenStore.GetAsync(cancellationToken)
                 ?? throw new CalendarAuthorizationException(CalendarAuthorizationFailure.NotConnected,
-                    "Google Calendar isn't connected. Paste a refresh token on the admin Calendar page (/admin/calendar).");
+                    "Google Calendar isn't connected. Paste a refresh token in the admin app under Integrations > Google Calendar.");
 
             var now = timeProvider.GetUtcNow();
             if (!forceRefresh && token.AccessToken != null && token.AccessTokenExpiresUtc > now + ExpiryMargin)

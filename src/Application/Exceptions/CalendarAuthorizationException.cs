@@ -1,14 +1,14 @@
 namespace Elysian.Application.Exceptions
 {
     /// <summary>
-    /// Google Calendar can't be used until the photographer (re)connects it on the admin Calendar page.
+    /// Google Calendar can't be used until the photographer (re)connects it in the admin app (Integrations > Google Calendar).
     /// Messages never include tokens or client secrets.
     /// </summary>
     public class CalendarAuthorizationException(CalendarAuthorizationFailure failure, string message, Exception? innerException = null)
         : Exception(message, innerException)
     {
         public const string ReconnectHelp = "Google Calendar access was revoked or has expired (invalid_grant). Online booking is paused "
-            + "until it's reconnected: get a new refresh token for the calendar account and paste it on the admin Calendar page (/admin/calendar).";
+            + "until it's reconnected: get a new refresh token for the calendar account and paste it in the admin app under Integrations > Google Calendar.";
 
         public CalendarAuthorizationFailure Failure { get; } = failure;
     }

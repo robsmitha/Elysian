@@ -181,7 +181,7 @@ namespace Elysian.Infrastructure.Services
         private CalendarAuthorizationException Forbidden(GoogleApiException ex) =>
             new(CalendarAuthorizationFailure.Forbidden,
                 $"Google refused access to calendar \"{CalendarId}\" ({(int)ex.HttpStatusCode}). Check GoogleCalendar:CalendarId and that the "
-                + "token was granted the Google Calendar scope, then reconnect on the admin Calendar page.", ex);
+                + "token was granted the Google Calendar scope, then reconnect in the admin app under Integrations > Google Calendar.", ex);
 
         private static CalendarEvent? ToCalendarEvent(Event item)
         {
