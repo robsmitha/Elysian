@@ -70,8 +70,10 @@ namespace Elysian.Application.Features.Placements
                 string.Join(',', slot.Widths),
                 photoStorageSettings.Value.WebpQuality);
 
+            // An empty slot's bytes depend only on how the catalog wants it shown, so a catalog that changes
+            // its mind has every empty slot published again
             var content = photo == null
-                ? "neutral"
+                ? catalog.EmptyIsTransparent ? "neutral-transparent" : "neutral"
                 : string.Join('|',
                     photo.PhotoId.ToString("N"),
                     photo.Version,

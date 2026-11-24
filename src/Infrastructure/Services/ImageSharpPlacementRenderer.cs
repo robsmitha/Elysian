@@ -43,13 +43,16 @@ namespace Elysian.Infrastructure.Services
             return new Source(image, this);
         }
 
-        public async Task<IReadOnlyList<PlacementVariant>> RenderNeutralAsync(PlacementSlot slot, CancellationToken cancellationToken = default)
+        public async Task<IReadOnlyList<PlacementVariant>> RenderNeutralAsync(PlacementSlot slot, bool transparent = false, CancellationToken cancellationToken = default)
         {
             var variants = new List<PlacementVariant>(slot.Widths.Length);
             foreach (var width in slot.Widths.Order())
             {
                 var height = slot.HeightFor(width);
-                using var blank = new Image<Rgb24>(width, height, NeutralColor);
+                // The same size either way, so the page's frame holds its shape whichever it is
+                using Image blank = transparent
+                    ? new Image<Rgba32>(width, height, new Rgba32(0, 0, 0, 0))
+                    : new Image<Rgb24>(width, height, NeutralColor);
                 variants.Add(new PlacementVariant(width, width, height, await EncodeAsync(blank, cancellationToken)));
             }
 

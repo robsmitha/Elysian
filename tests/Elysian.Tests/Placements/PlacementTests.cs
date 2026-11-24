@@ -111,6 +111,40 @@ namespace Elysian.Tests.Placements
         {
             var variants = await new ImageSharpPlacementRenderer(photoSettings).RenderNeutralAsync(catalog.Slots[2]);
             Assert.Equal(new[] { (880, 400), (2400, 1091) }, variants.Select(v => (v.Width, v.Height)));
+
+            // The soft ivory a one-site host has always had, nothing see-through about it
+            using var frame = SixLabors.ImageSharp.Image.Load<SixLabors.ImageSharp.PixelFormats.Rgba32>(variants[0].Content);
+            Assert.Equal(255, frame[10, 10].A);
+            Assert.InRange(frame[10, 10].R, 240, 255);
+        }
+
+        [Fact]
+        public async Task A_transparent_frame_is_the_same_size_and_shows_what_is_behind_it()
+        {
+            var renderer = new ImageSharpPlacementRenderer(photoSettings);
+            var variants = await renderer.RenderNeutralAsync(catalog.Slots[2], transparent: true);
+            Assert.Equal(new[] { (880, 400), (2400, 1091) }, variants.Select(v => (v.Width, v.Height)));
+
+            foreach (var variant in variants)
+            {
+                using var frame = SixLabors.ImageSharp.Image.Load<SixLabors.ImageSharp.PixelFormats.Rgba32>(variant.Content);
+                Assert.Equal((variant.Width, variant.Height), (frame.Width, frame.Height));
+                Assert.Equal(0, frame[0, 0].A);
+                Assert.Equal(0, frame[variant.Width / 2, variant.Height / 2].A);
+                // Next to nothing, however large the frame
+                Assert.InRange(variant.Content.Length, 1, 16 * 1024);
+            }
+        }
+
+        [Fact]
+        public void A_catalog_says_how_an_empty_slot_is_shown_and_nothing_else_will_do()
+        {
+            const string json = """{ "recipeVersion": 1, "siteDefaultKey": "site-default", "slots": [ { "key": "a", "name": "a", "ratio": 1, "widths": [320], "alt": "A" } ]""";
+
+            Assert.False(PlacementCatalog.FromJson(json + " }").EmptyIsTransparent);
+            Assert.True(PlacementCatalog.FromJson(json + """, "empty": "transparent" }""").EmptyIsTransparent);
+            var error = Assert.Throws<InvalidOperationException>(() => PlacementCatalog.FromJson(json + """, "empty": "black" }"""));
+            Assert.Contains("transparent", error.Message);
         }
 
         // ---- Resolving what each slot shows

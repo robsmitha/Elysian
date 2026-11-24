@@ -122,7 +122,7 @@ namespace Elysian.Application.Features.Placements.Commands
                 {
                     foreach (var slot in group)
                     {
-                        var variants = await renderer.RenderNeutralAsync(slot.Slot, cancellationToken);
+                        var variants = await renderer.RenderNeutralAsync(slot.Slot, catalog.EmptyIsTransparent, cancellationToken);
                         written.AddRange(await UploadAsync(tenant, slot, variants, cancellationToken));
                     }
                 }

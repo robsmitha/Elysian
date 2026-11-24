@@ -13,7 +13,8 @@ namespace Elysian.Application.Interfaces
         /// <summary>
         /// A plain frame at the slot's ratio, for a slot with no photo at all
         /// </summary>
-        Task<IReadOnlyList<PlacementVariant>> RenderNeutralAsync(PlacementSlot slot, CancellationToken cancellationToken = default);
+        /// <param name="transparent">See-through, so the page's own frame shows; otherwise a soft ivory</param>
+        Task<IReadOnlyList<PlacementVariant>> RenderNeutralAsync(PlacementSlot slot, bool transparent = false, CancellationToken cancellationToken = default);
     }
 
     public interface IPlacementSource : IDisposable

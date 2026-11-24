@@ -36,6 +36,18 @@ namespace Elysian.Application.Features.Placements
 
         public IReadOnlyList<PlacementSlot> Slots { get; init; } = [];
 
+        /// <summary>
+        /// What a slot with no photo at all is published as. Left out, a soft ivory frame, which suits a
+        /// light page of one known colour. <see cref="TransparentEmpty"/> publishes a see-through image, so
+        /// the page's own frame shows in whatever colours the site has: right for a template whose owner
+        /// picks the palette, where ivory would glare on a dark one. JSON: <c>"empty": "transparent"</c>.
+        /// </summary>
+        public string? Empty { get; init; }
+
+        public const string TransparentEmpty = "transparent";
+
+        public bool EmptyIsTransparent => string.Equals(Empty, TransparentEmpty, StringComparison.OrdinalIgnoreCase);
+
         private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
         public static PlacementCatalog FromJson(Stream json)
@@ -65,6 +77,11 @@ namespace Elysian.Application.Features.Placements
         /// <exception cref="InvalidOperationException">The catalog breaks a rule; the message says which</exception>
         public void Validate()
         {
+            if (Empty != null && !EmptyIsTransparent)
+            {
+                throw new InvalidOperationException($"The placement catalog's \"empty\" must be \"{TransparentEmpty}\" or left out.");
+            }
+
             if (Slots.Count == 0 || string.IsNullOrWhiteSpace(SiteDefaultKey))
             {
                 throw new InvalidOperationException("The placement catalog needs slots and a siteDefaultKey.");
