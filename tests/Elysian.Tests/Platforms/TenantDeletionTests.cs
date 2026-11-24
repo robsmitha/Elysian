@@ -9,16 +9,19 @@ using Elysian.Domain.Data;
 using Elysian.Domain.Platforms;
 using Elysian.Infrastructure.Context;
 using Elysian.Infrastructure.Services;
+using Elysian.Infrastructure.Settings;
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace Elysian.Tests.Platforms
 {
     /// <summary>
-    /// Deleting a site for good: two deliberate steps, then the edge, its files and its rows, in that order
+    /// Deleting a site for good: two deliberate steps, some days to change one's mind, then the edge, its
+    /// files and its rows, in that order
     /// </summary>
     public sealed class TenantDeletionTests : IDisposable
     {
@@ -26,6 +29,13 @@ namespace Elysian.Tests.Platforms
         private readonly PlatformContext platform;
         private readonly List<string> steps = [];
         private readonly List<TenantJobMessage> queued = [];
+        private readonly Clock clock = new(DateTimeOffset.Parse("2026-11-23T12:00:00Z"));
+
+        private sealed class Clock(DateTimeOffset now) : TimeProvider
+        {
+            public DateTimeOffset Now { get; set; } = now;
+            public override DateTimeOffset GetUtcNow() => Now;
+        }
         private ElysianTenantInfo tenant = TestHost.Tenant with { Runtime = RuntimeNames.Cloud, Status = TenantStatusNames.Suspended, TemplateKey = "classic", TemplateVersion = 1 };
 
         public TenantDeletionTests()
@@ -59,6 +69,9 @@ namespace Elysian.Tests.Platforms
             map.Setup(m => m.RemoveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .Callback((string h, CancellationToken _) => steps.Add($"edge host {h}"))
                 .Returns(Task.CompletedTask);
+            map.Setup(m => m.SyncAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .Callback((string t, CancellationToken _) => steps.Add($"edge sync {t}"))
+                .Returns(Task.CompletedTask);
             return map.Object;
         }
 
@@ -79,8 +92,17 @@ namespace Elysian.Tests.Platforms
             return queue.Object;
         }
 
-        private Task DeleteAsync(string? confirm = "test", bool queueFails = false) =>
-            new DeleteTenantCommandHandler(platform, Queue(queueFails), HostMap()).Handle(new DeleteTenantCommand("test", confirm), default);
+        private Task DeleteAsync(string? confirm = "test", bool queueFails = false, bool now = false, int days = 14) =>
+            new DeleteTenantCommandHandler(platform, Queue(queueFails), HostMap(), null,
+                    Options.Create(new PlatformDeletionSettings { GraceDays = days }), clock)
+                .Handle(new DeleteTenantCommand("test", confirm, now), default);
+
+        private Task RestoreAsync() =>
+            new RestoreDeletedTenantCommandHandler(platform, HostMap(), null, clock).Handle(new RestoreDeletedTenantCommand("test"), default);
+
+        private Task<int> QueueDueAsync() =>
+            new EnqueueDueSiteDeletionsCommandHandler(platform, Queue(), NullLogger<EnqueueDueSiteDeletionsCommandHandler>.Instance, clock)
+                .Handle(new EnqueueDueSiteDeletionsCommand(), default);
 
         // ---- Asking
 
@@ -120,9 +142,128 @@ namespace Elysian.Tests.Platforms
         }
 
         [Fact]
-        public async Task Deleting_marks_the_site_stops_it_answering_and_queues_the_rest()
+        public async Task Deleting_stops_the_site_answering_and_keeps_everything_for_some_days()
         {
             await DeleteAsync();
+
+            var row = await platform.Tenants.AsNoTracking().SingleAsync();
+            Assert.Equal(TenantStatusNames.Deleting, row.Status);
+            Assert.Equal(clock.Now.AddDays(14), row.DeleteAfter);
+            // It stops answering, and that is all: nothing is queued, so nothing is removed
+            Assert.Equal(["edge host test.framenice.example"], steps);
+            Assert.Empty(queued);
+            Assert.Equal(row.DeleteAfter, (await new GetTenantsQueryHandler(platform).Handle(new GetTenantsQuery(), default)).Single().DeleteAfter);
+        }
+
+        [Fact]
+        public async Task Asking_again_does_not_start_the_days_over_and_removes_nothing_early()
+        {
+            await DeleteAsync();
+            var due = (await platform.Tenants.AsNoTracking().SingleAsync()).DeleteAfter;
+
+            clock.Now = clock.Now.AddDays(3);
+            await DeleteAsync();
+
+            Assert.Equal(due, (await platform.Tenants.AsNoTracking().SingleAsync()).DeleteAfter);
+            Assert.Empty(queued);
+
+            // Unless it is asked to go now
+            await DeleteAsync(now: true);
+            Assert.Equal(clock.Now, (await platform.Tenants.AsNoTracking().SingleAsync()).DeleteAfter);
+            Assert.Single(queued);
+        }
+
+        [Fact]
+        public async Task With_no_days_to_wait_everything_goes_at_once()
+        {
+            await DeleteAsync(days: 0);
+
+            Assert.Equal(clock.Now, (await platform.Tenants.AsNoTracking().SingleAsync()).DeleteAfter);
+            Assert.Single(queued);
+        }
+
+        [Theory]
+        [InlineData(-5, 0)]
+        [InlineData(14, 14)]
+        [InlineData(5000, PlatformDeletionSettings.MostDays)]
+        public void The_days_are_kept_within_reason(int configured, int days)
+        {
+            Assert.Equal(days, new PlatformDeletionSettings { GraceDays = configured }.Days);
+        }
+
+        [Fact]
+        public async Task A_deleted_site_can_be_brought_back_whole_while_its_days_last()
+        {
+            await DeleteAsync();
+            steps.Clear();
+            clock.Now = clock.Now.AddDays(13);
+
+            await RestoreAsync();
+
+            var row = await platform.Tenants.AsNoTracking().SingleAsync();
+            // Suspended, as it was before it was deleted; restoring it from there is the usual step
+            Assert.Equal(TenantStatusNames.Suspended, row.Status);
+            Assert.Null(row.DeleteAfter);
+            Assert.Equal(["edge sync test"], steps);
+            Assert.Single(platform.TenantDomains);
+
+            // And it is no longer due, however long passes
+            clock.Now = clock.Now.AddDays(30);
+            Assert.Equal(0, await QueueDueAsync());
+        }
+
+        [Fact]
+        public async Task A_site_cannot_be_brought_back_once_its_days_have_run_out()
+        {
+            await DeleteAsync();
+            clock.Now = clock.Now.AddDays(14);
+
+            var error = await Assert.ThrowsAsync<ConflictException>(RestoreAsync);
+            Assert.Contains("too late", error.Message);
+            Assert.Equal(TenantStatusNames.Deleting, (await platform.Tenants.AsNoTracking().SingleAsync()).Status);
+        }
+
+        [Fact]
+        public async Task A_site_that_is_not_being_deleted_has_nothing_to_bring_back()
+        {
+            await Assert.ThrowsAsync<ConflictException>(RestoreAsync);
+            Assert.Equal(TenantStatusNames.Suspended, (await platform.Tenants.AsNoTracking().SingleAsync()).Status);
+        }
+
+        [Fact]
+        public async Task The_daily_run_queues_only_sites_whose_days_have_run_out()
+        {
+            await DeleteAsync();
+
+            clock.Now = clock.Now.AddDays(13);
+            Assert.Equal(0, await QueueDueAsync());
+            Assert.Empty(queued);
+
+            clock.Now = clock.Now.AddDays(1);
+            Assert.Equal(1, await QueueDueAsync());
+            Assert.Equal(new TenantJobMessage("test", TenantJobCatalog.DeleteSite), Assert.Single(queued));
+
+            // Still there the next day (the job failed partway): queued again
+            Assert.Equal(1, await QueueDueAsync());
+        }
+
+        [Fact]
+        public async Task The_daily_run_leaves_live_sites_and_sites_with_their_own_code_alone()
+        {
+            Assert.Equal(0, await QueueDueAsync());
+
+            await SetAsync(t => { t.Status = TenantStatusNames.Deleting; t.Runtime = RuntimeNames.Custom; });
+            Assert.Equal(0, await QueueDueAsync());
+
+            // One marked before there were days to wait has no date, and is due
+            await SetAsync(t => t.Runtime = RuntimeNames.Cloud);
+            Assert.Equal(1, await QueueDueAsync());
+        }
+
+        [Fact]
+        public async Task Deleting_now_marks_the_site_stops_it_answering_and_queues_the_rest()
+        {
+            await DeleteAsync(now: true);
 
             Assert.Equal(TenantStatusNames.Deleting, (await platform.Tenants.AsNoTracking().SingleAsync()).Status);
             Assert.Equal(["edge host test.framenice.example", $"queue {TenantJobCatalog.DeleteSite}"], steps);
@@ -134,7 +275,7 @@ namespace Elysian.Tests.Platforms
         [Fact]
         public async Task A_delete_that_did_not_finish_can_be_asked_for_again()
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() => DeleteAsync(queueFails: true));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => DeleteAsync(queueFails: true, now: true));
             Assert.Equal(TenantStatusNames.Deleting, (await platform.Tenants.AsNoTracking().SingleAsync()).Status);
 
             await DeleteAsync();
@@ -217,7 +358,22 @@ namespace Elysian.Tests.Platforms
                 });
 
             return new PurgeSiteCommandHandler(host.Context, platform, new RecordingEraser(steps), accessor.Object,
-                NullLogger<PurgeSiteCommandHandler>.Instance, edge.Object, HostMap(), photos.Object, placements.Object, purger.Object);
+                NullLogger<PurgeSiteCommandHandler>.Instance, edge.Object, HostMap(), photos.Object, placements.Object, purger.Object, clock);
+        }
+
+        [Fact]
+        public async Task The_job_touches_nothing_of_a_site_that_can_still_be_brought_back()
+        {
+            await DeleteAsync();
+            steps.Clear();
+            await SetAsync(_ => { });
+            clock.Now = clock.Now.AddDays(13);
+
+            Assert.Equal(PurgeSiteCommandHandler.NotDue, await Purge().Handle(new PurgeSiteCommand(), default));
+            Assert.Empty(steps);
+
+            clock.Now = clock.Now.AddDays(1);
+            Assert.StartsWith("Deleted test", await Purge().Handle(new PurgeSiteCommand(), default));
         }
 
         [Theory]
