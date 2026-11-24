@@ -220,10 +220,11 @@ namespace Elysian.Application.Features.Platform.Commands
 
     /// <param name="PrimaryHost">The address the site is known by, or null when it has none recorded</param>
     /// <param name="ContentVersion">The published version of a cloud site's content, or null when it has never published</param>
+    /// <param name="StorageQuotaGb">The site's own storage limit in gigabytes, or null when it has the platform's</param>
     /// <param name="DeleteAfter">For a site being deleted, when its photos and data are removed; it can be brought back until then</param>
     public record TenantSummary(string Identifier, string? Name, string? Platform, string? Runtime, string? Status,
         string? TemplateKey, int? TemplateVersion, int? ContentVersion, string? PrimaryHost, IReadOnlyList<string> Modules,
-        DateTimeOffset? DeleteAfter = null);
+        DateTimeOffset? DeleteAfter = null, int? StorageQuotaGb = null);
 
     /// <summary>
     /// Every site on the platform, by identifier
@@ -249,7 +250,8 @@ namespace Elysian.Application.Features.Platform.Commands
                     t.TemplateKey, t.TemplateVersion, t.ContentVersion,
                     primaryHosts.GetValueOrDefault(t.Id!),
                     [.. modules[t.Id!].Order(StringComparer.Ordinal)],
-                    t.Status == TenantStatusNames.Deleting ? t.DeleteAfter : null))];
+                    t.Status == TenantStatusNames.Deleting ? t.DeleteAfter : null,
+                    t.StorageQuotaGb))];
         }
     }
 

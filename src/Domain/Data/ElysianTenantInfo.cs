@@ -52,5 +52,11 @@ namespace Elysian.Domain.Data
         /// been removed and the site can be brought back. Null for every other site.
         /// </summary>
         public DateTimeOffset? DeleteAfter { get; set; }
+
+        /// <summary>
+        /// The uploaded photos this site may hold, in gigabytes, when it has a limit of its own. Null for the
+        /// platform's default (PlatformStorage:DefaultQuotaGb).
+        /// </summary>
+        public int? StorageQuotaGb { get; set; }
     }
 }

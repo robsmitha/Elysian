@@ -96,6 +96,8 @@ namespace Elysian.Infrastructure
             services.Configure<PlatformDomainSettings>(configuration.GetSection(PlatformDomainSettings.SectionName));
             // How long a deleted site is kept before its photos and data are removed
             services.Configure<PlatformDeletionSettings>(configuration.GetSection(PlatformDeletionSettings.SectionName));
+            // How much a site drawn with a shared template may upload
+            services.Configure<PlatformStorageSettings>(configuration.GetSection(PlatformStorageSettings.SectionName));
             services.AddSingleton<ITokenValidator>(serviceProvider => new JwtTokenValidator(
                 serviceProvider.GetRequiredService<IOptions<AuthSettings>>(),
                 serviceProvider.GetRequiredService<ILogger<JwtTokenValidator>>()));
@@ -232,6 +234,7 @@ namespace Elysian.Infrastructure
             services.AddSingleton(templates ?? new SiteTemplateCatalog());
             services.AddScoped<SiteContentReader>();
             services.AddScoped<SiteTemplateChanger>();
+            services.TryAddSingleton<ISiteLogoRenderer, ImageSharpSiteLogoRenderer>();
 
             services.Configure<StoryPreviewSettings>(configuration.GetSection(StoryPreviewSettings.SectionName));
             services.TryAddSingleton(TimeProvider.System);
@@ -301,6 +304,7 @@ namespace Elysian.Infrastructure
             services.AddScoped<IPlacementStore, AzurePlacementStore>();
             services.AddScoped<IPlacementPublishQueue, AzurePlacementPublishQueue>();
             services.AddSingleton<IPlacementRenderer, ImageSharpPlacementRenderer>();
+            services.AddScoped<Elysian.Application.Features.Photos.StorageQuota>();
             services.AddHttpClient<ICdnPurger, CloudflareCdnPurger>((serviceProvider, httpClient) =>
             {
                 httpClient.BaseAddress = new Uri(serviceProvider.GetRequiredService<IOptions<CloudflareSettings>>().Value.ApiBaseUrl);

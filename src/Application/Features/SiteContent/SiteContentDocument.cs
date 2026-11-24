@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Elysian.Application.Features.SiteContent
 {
@@ -11,6 +12,16 @@ namespace Elysian.Application.Features.SiteContent
     public sealed record SiteContentCategory(string Slug, string? Name, bool Enabled = true);
 
     public sealed record SiteContentProblem(string Field, string Message);
+
+    /// <summary>
+    /// The site's logo: which upload it is, and the size of the larger of its two files. The files are
+    /// <c>placements/{tenant}/logo-{version}-{height}.webp</c> and the same at half the height (see
+    /// <see cref="SiteLogoPaths"/>). A new upload is a new version, so a file never changes once written, and
+    /// a draft can show a new logo while visitors still see the old one.
+    /// </summary>
+    /// <param name="Width">Of the larger file, in pixels</param>
+    /// <param name="Height">Of the larger file, in pixels. Always even, so the smaller file is exactly half.</param>
+    public sealed record SiteContentLogo(long Version, int Width, int Height);
 
     /// <summary>
     /// What a site's owner chose within their template: colours and fonts, wording, links, and which categories
@@ -40,6 +51,20 @@ namespace Elysian.Application.Features.SiteContent
         /// The categories in the order the site lists them. One left out is shown as the template defines it.
         /// </summary>
         public IReadOnlyList<SiteContentCategory> Categories { get; init; } = [];
+
+        /// <summary>
+        /// The logo shown in place of the site's name, or null to show the name. Only uploading or removing a
+        /// logo changes it (<see cref="UploadSiteLogoCommand"/>): saving the draft keeps what is stored.
+        /// Left out of the JSON when there is none, so content from before logos reads and compares unchanged.
+        /// </summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public SiteContentLogo? Logo { get; init; }
+
+        /// <summary>The same content with another logo, or none</summary>
+        public SiteContentDocument WithLogo(SiteContentLogo? logo) => new()
+        {
+            Theme = Theme, Text = Text, Links = Links, Categories = Categories, Logo = logo,
+        };
 
         /// <summary>
         /// A new site's content: the template's first palette and font, its default wording, every category on
@@ -90,6 +115,7 @@ namespace Elysian.Application.Features.SiteContent
             Links = Clean(Links, value => value.Trim()),
             Categories = [.. (Categories ?? []).Select(c => new SiteContentCategory(
                 (c.Slug ?? string.Empty).Trim(), string.IsNullOrWhiteSpace(c.Name) ? null : c.Name.Trim(), c.Enabled))],
+            Logo = Logo,
         };
 
         private static SortedDictionary<string, string> Clean(IReadOnlyDictionary<string, string>? values, Func<string, string> clean)
@@ -162,6 +188,11 @@ namespace Elysian.Application.Features.SiteContent
                 {
                     Add(field, SiteContentRules.CategoryNameProblem(category.Name));
                 }
+            }
+
+            if (Logo != null)
+            {
+                Add("logo", SiteLogoPaths.IsWellFormed(Logo) ? null : "The logo isn't one that was uploaded here. Upload it again.");
             }
 
             var off = Categories.Where(c => !c.Enabled).Select(c => c.Slug).ToHashSet(StringComparer.Ordinal);
