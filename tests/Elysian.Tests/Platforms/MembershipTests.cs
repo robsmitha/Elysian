@@ -138,6 +138,67 @@ namespace Elysian.Tests.Platforms
         }
 
         [Fact]
+        public async Task Everything_that_is_the_persons_follows_them_whichever_table_it_is_in()
+        {
+            await AddMembershipAsync(null, "owner@example.com", RoleNames.Owner);
+            host.Context.Users.Add(TestHost.User(0, "old-swa-id", "owner@example.com", policies: PolicyNames.BudgetRead));
+
+            // One row of every kind that names its owner by sign-in id, and one of each that is someone else's.
+            // Read from the model, so a table added later is in this test without anyone adding it.
+            var owned = IdentityService.UserOwnedEntityTypes(host.Context.Model).ToList();
+            foreach (var entityType in owned)
+            {
+                foreach (var owner in new[] { "old-swa-id", "someone-else" })
+                {
+                    var row = Activator.CreateInstance(entityType.ClrType)!;
+                    foreach (var property in entityType.GetProperties().Where(p => p.ClrType == typeof(string) && !p.IsNullable && !p.IsShadowProperty()))
+                    {
+                        property.PropertyInfo?.SetValue(row, property.Name == "OAuthProvider" ? Domain.Constants.OAuthProviders.GitHub : $"x-{owner}");
+                    }
+                    // A key the row makes for itself, not the database
+                    foreach (var key in entityType.FindPrimaryKey()!.Properties.Where(p => p.ClrType == typeof(Guid)))
+                    {
+                        key.PropertyInfo?.SetValue(row, Guid.NewGuid());
+                    }
+                    entityType.FindProperty("UserId")!.PropertyInfo!.SetValue(row, owner);
+                    host.Context.Add(row);
+                }
+            }
+            await host.Context.SaveChangesAsync();
+
+            await Identity().GetOrCreateAsync(Person("new-oid", "owner@example.com"));
+
+            // The ones that matter most are named, so the test fails loudly if the model ever stops listing them
+            var names = owned.Select(t => t.ClrType.Name).ToList();
+            foreach (var expected in new[] { "Budget", "BudgetMonth", "FinancialCategory", "CategoryRule", "IncomeStream", "NotificationSettings", "Debt", "DebtPlan", "SavingsGoal", "BillTracking", "AssistantAction", "AssistantUsage", "OAuthToken" })
+            {
+                Assert.Contains(expected, names);
+            }
+
+            foreach (var entityType in owned)
+            {
+                var owners = host.Context.Model.FindEntityType(entityType.ClrType)!.ClrType is var type
+                    ? ((IEnumerable<object>)typeof(DbContext).GetMethod(nameof(DbContext.Set), Type.EmptyTypes)!.MakeGenericMethod(type).Invoke(host.Context, null)!)
+                        .Select(row => (string)entityType.FindProperty("UserId")!.PropertyInfo!.GetValue(row)!).Order().ToList()
+                    : [];
+                Assert.True(owners.SequenceEqual(["new-oid", "someone-else"]), $"{entityType.ClrType.Name}: {string.Join(", ", owners)}");
+            }
+        }
+
+        [Fact]
+        public async Task A_token_for_another_provider_is_left_with_the_sign_in_that_made_it()
+        {
+            await AddMembershipAsync(null, "owner@example.com", RoleNames.Owner);
+            host.Context.Users.Add(TestHost.User(0, "old-swa-id", "owner@example.com", policies: PolicyNames.BudgetRead));
+            host.Context.OAuthTokens.Add(new OAuthToken { UserId = "old-swa-id", OAuthProvider = "another-provider", AccessToken = "x", TokenType = "bearer", Scope = "x" });
+            await host.Context.SaveChangesAsync();
+
+            await Identity().GetOrCreateAsync(Person("new-oid", "owner@example.com"));
+
+            Assert.Equal("old-swa-id", host.Context.OAuthTokens.Single().UserId);
+        }
+
+        [Fact]
         public async Task A_platform_admin_may_act_in_any_tenant_and_the_first_time_is_audited()
         {
             var identity = Identity();

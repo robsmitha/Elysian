@@ -1,5 +1,9 @@
 using Elysian.Application.Exceptions;
+using Elysian.Application.Features.Assistant.Commands;
+using Elysian.Application.Features.Congress.Commands;
+using Elysian.Application.Features.Financial.Commands;
 using Elysian.Application.Features.GoogleCalendar.Commands;
+using Elysian.Domain.Constants;
 using Elysian.Application.Features.Instagram.Commands;
 using Elysian.Application.Features.Platform;
 using Elysian.Application.Features.Platform.Commands;
@@ -94,6 +98,72 @@ namespace Elysian.Tests.Platforms
             await Enqueue(TenantJobCatalog.CalendarHealth);
 
             Assert.Equal("aspensmitha", Assert.Single(queue.Messages).Tenant);
+        }
+
+        [Fact]
+        public async Task The_nightly_bank_sync_is_queued_only_for_the_site_that_has_finance()
+        {
+            await Enqueue(TenantJobCatalog.BankSync);
+
+            // Never a photography site: its request would be refused, and it has no business being asked
+            Assert.Equal("robsmitha", Assert.Single(queue.Messages).Tenant);
+        }
+
+        [Theory]
+        [InlineData(TenantJobCatalog.AssistantCleanup)]
+        [InlineData(TenantJobCatalog.CongressRefresh)]
+        public async Task A_job_for_a_module_no_site_has_is_queued_for_nobody(string job)
+        {
+            Assert.Equal(new EnqueueTenantJobsResult(0, 0), await Enqueue(job));
+            Assert.Empty(queue.Messages);
+        }
+
+        [Fact]
+        public void Each_personal_job_is_held_to_its_own_module_and_runs_its_own_request()
+        {
+            (string Job, string Module, Type Request)[] expected =
+            [
+                (TenantJobCatalog.BankSync, ModuleNames.Finance, typeof(QueueDueBankSyncsCommand)),
+                (TenantJobCatalog.AssistantCleanup, ModuleNames.Assistant, typeof(CleanUpAssistantActionsCommand)),
+                (TenantJobCatalog.CongressRefresh, ModuleNames.Congress, typeof(RefreshTrackedBillsCommand)),
+            ];
+            foreach (var (job, module, request) in expected)
+            {
+                var definition = TenantJobCatalog.Find(job)!;
+                Assert.Equal(module, definition.Module);
+                Assert.False(definition.OnRequest);
+                Assert.IsType(request, definition.CreateRequest());
+                // The request's own folder holds it to the same module, so running it for a site without the
+                // module is refused even if a message for it were ever queued
+                Assert.Equal(module, Elysian.Application.Behaviors.RequestModules.For(request));
+            }
+        }
+
+        [Fact]
+        public async Task The_nightly_catch_up_queues_one_sync_for_each_bank_that_is_due()
+        {
+            var sync = new Mock<ITransactionSyncService>();
+            sync.Setup(s => s.GetItemsDueForSyncAsync(QueueDueBankSyncsCommandHandler.Freshness, It.IsAny<CancellationToken>())).ReturnsAsync([4, 9]);
+            var queued = new List<(int Item, SyncTrigger Trigger)>();
+            var syncQueue = new Mock<IPlaidSyncQueue>();
+            syncQueue.Setup(q => q.EnqueueAsync(It.IsAny<int>(), It.IsAny<SyncTrigger>(), It.IsAny<CancellationToken>()))
+                .Callback((int item, SyncTrigger trigger, CancellationToken _) => queued.Add((item, trigger)))
+                .Returns(Task.CompletedTask);
+
+            var result = await new QueueDueBankSyncsCommandHandler(sync.Object, syncQueue.Object, NullLogger<QueueDueBankSyncsCommandHandler>.Instance)
+                .Handle(new QueueDueBankSyncsCommand(), default);
+
+            Assert.Equal("Queued 2 bank sync(s)", result);
+            Assert.Equal([(4, SyncTrigger.Nightly), (9, SyncTrigger.Nightly)], queued);
+        }
+
+        [Fact]
+        public async Task Old_assistant_actions_are_kept_a_week()
+        {
+            var actions = new Mock<IAssistantActionService>();
+            actions.Setup(a => a.CleanupAsync(7, It.IsAny<CancellationToken>())).ReturnsAsync(3);
+
+            Assert.Equal("Removed 3 old assistant action(s)", await new CleanUpAssistantActionsCommandHandler(actions.Object).Handle(new CleanUpAssistantActionsCommand(), default));
         }
 
         [Fact]

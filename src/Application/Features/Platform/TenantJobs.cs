@@ -1,3 +1,6 @@
+using Elysian.Application.Features.Assistant.Commands;
+using Elysian.Application.Features.Congress.Commands;
+using Elysian.Application.Features.Financial.Commands;
 using Elysian.Application.Features.GoogleCalendar.Commands;
 using Elysian.Application.Features.Instagram.Commands;
 using Elysian.Domain.Platforms;
@@ -23,6 +26,11 @@ namespace Elysian.Application.Features.Platform
         public const string InstagramTokenRefresh = "instagram-token-refresh";
         public const string CalendarHealth = "calendar-health";
 
+        /// <summary>The nightly catch-up of banks a webhook missed</summary>
+        public const string BankSync = "bank-sync";
+        public const string AssistantCleanup = "assistant-cleanup";
+        public const string CongressRefresh = "congress-refresh";
+
         /// <summary>The queued half of deleting a site (see DeleteTenantCommand)</summary>
         public const string DeleteSite = "delete-site";
 
@@ -31,6 +39,9 @@ namespace Elysian.Application.Features.Platform
             new(InstagramSync, ModuleNames.Instagram, () => new SyncInstagramPostsCommand()),
             new(InstagramTokenRefresh, ModuleNames.Instagram, () => new RefreshInstagramTokenCommand()),
             new(CalendarHealth, ModuleNames.Booking, () => new CheckGoogleCalendarHealthCommand()),
+            new(BankSync, ModuleNames.Finance, () => new QueueDueBankSyncsCommand()),
+            new(AssistantCleanup, ModuleNames.Assistant, () => new CleanUpAssistantActionsCommand()),
+            new(CongressRefresh, ModuleNames.Congress, () => new RefreshTrackedBillsCommand()),
             new(DeleteSite, null, () => new Commands.PurgeSiteCommand(), OnRequest: true),
         ];
 
