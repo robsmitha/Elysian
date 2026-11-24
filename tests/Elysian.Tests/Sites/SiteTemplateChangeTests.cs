@@ -133,6 +133,10 @@ namespace Elysian.Tests.Sites
 
             Assert.Equal([("classic", true), ("gallery", false)], options.Select(o => (o.Key, o.Current)));
             Assert.Equal("How Gallery looks.", options[1].Description);
+            // Each says the shape it crops a spot to, so a change can be looked at before it is made
+            Assert.Equal([("home-hero", 2.2)], options[0].Shapes!.Select(s => (s.Key, s.Ratio)));
+            Assert.Equal([("home-hero", 0.8)], options[1].Shapes!.Select(s => (s.Key, s.Ratio)));
+            Assert.All(options, o => Assert.All(o.Shapes!, s => Assert.False(string.IsNullOrWhiteSpace(s.Label))));
         }
 
         [Fact]
