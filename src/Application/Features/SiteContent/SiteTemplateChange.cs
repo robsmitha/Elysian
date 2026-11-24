@@ -17,7 +17,15 @@ namespace Elysian.Application.Features.SiteContent
 {
     /// <summary>A template a site could be drawn with</summary>
     /// <param name="Current">The one the site is on now</param>
-    public sealed record SiteTemplateOption(string Key, int Version, string Name, string? Description, bool Current);
+    /// <param name="Shapes">The shape each of its photo spots is cropped to, so a change can be looked at before it is made</param>
+    public sealed record SiteTemplateOption(string Key, int Version, string Name, string? Description, bool Current,
+        IReadOnlyList<SiteTemplateShape>? Shapes = null);
+
+    /// <summary>The shape a template crops one photo spot to</summary>
+    /// <param name="Key">The spot, the same in every template: "home-hero"</param>
+    /// <param name="Label">What the spot is called: "Hero"</param>
+    /// <param name="Ratio">Width over height</param>
+    public sealed record SiteTemplateShape(string Key, string Label, double Ratio);
 
     /// <summary>A change of template that has been asked for and is not finished yet</summary>
     public sealed record SiteTemplateChangeModel(string TemplateKey, int TemplateVersion, string TemplateName, DateTimeOffset RequestedAt);
@@ -60,7 +68,19 @@ namespace Elysian.Application.Features.SiteContent
                 .Select(g => g.MaxBy(t => t.Version)!)
                 .Where(t => t.ManifestJson != null)
                 .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(t => new SiteTemplateOption(t.Key, t.Version, t.Name, t.Description, t.Key == tenant.TemplateKey && t.Version == tenant.TemplateVersion))];
+                .Select(t => new SiteTemplateOption(t.Key, t.Version, t.Name, t.Description,
+                    t.Key == tenant.TemplateKey && t.Version == tenant.TemplateVersion, Shapes(t)))];
+        }
+
+        /// <summary>
+        /// The template's photo spots and the shape each is cropped to, in its manifest's order
+        /// </summary>
+        private static IReadOnlyList<SiteTemplateShape> Shapes(SiteTemplate template)
+        {
+            // Read with placeholder names: only the spots and their shapes are wanted, and those are the template's own
+            var manifest = SiteManifestDocument.FromJson(template.ManifestFor("Example", "https://example.invalid")!);
+            var labels = manifest.Spots.ToDictionary(s => s.Key, s => s.Label, StringComparer.Ordinal);
+            return [.. (manifest.Placements?.Slots ?? []).Select(s => new SiteTemplateShape(s.Key, labels.GetValueOrDefault(s.Key, s.Key), s.Ratio))];
         }
 
         /// <summary>
