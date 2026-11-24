@@ -46,5 +46,11 @@ namespace Elysian.Domain.Data
         /// until something has been published.
         /// </summary>
         public int? ContentVersion { get; set; }
+
+        /// <summary>
+        /// For a site marked as being deleted: when its photos and data are removed. Until then nothing has
+        /// been removed and the site can be brought back. Null for every other site.
+        /// </summary>
+        public DateTimeOffset? DeleteAfter { get; set; }
     }
 }

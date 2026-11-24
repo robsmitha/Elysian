@@ -94,6 +94,8 @@ namespace Elysian.Infrastructure
             services.Configure<AuthSettings>(configuration.GetSection(AuthSettings.SectionName));
             // The domain a platform's new sites get their first address under
             services.Configure<PlatformDomainSettings>(configuration.GetSection(PlatformDomainSettings.SectionName));
+            // How long a deleted site is kept before its photos and data are removed
+            services.Configure<PlatformDeletionSettings>(configuration.GetSection(PlatformDeletionSettings.SectionName));
             services.AddSingleton<ITokenValidator>(serviceProvider => new JwtTokenValidator(
                 serviceProvider.GetRequiredService<IOptions<AuthSettings>>(),
                 serviceProvider.GetRequiredService<ILogger<JwtTokenValidator>>()));
