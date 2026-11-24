@@ -178,10 +178,11 @@ namespace Elysian.Application.Features.SiteContent
                 Text = content.Text,
                 Links = content.Links,
                 Categories = content.Categories,
+                Logo = content.Logo,
             };
 
             return fitted.Validate(target).Any(p => p.Field == "theme.accent")
-                ? new SiteContentDocument { Theme = fitted.Theme with { Accent = null }, Text = fitted.Text, Links = fitted.Links, Categories = fitted.Categories }
+                ? new SiteContentDocument { Theme = fitted.Theme with { Accent = null }, Text = fitted.Text, Links = fitted.Links, Categories = fitted.Categories, Logo = fitted.Logo }
                 : fitted;
         }
 

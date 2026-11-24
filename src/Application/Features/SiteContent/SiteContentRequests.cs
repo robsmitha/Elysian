@@ -18,9 +18,10 @@ namespace Elysian.Application.Features.SiteContent
     /// <param name="HasUnpublishedChanges">The draft differs from what visitors see</param>
     /// <param name="Templates">The templates the site could be drawn with, the current one among them</param>
     /// <param name="TemplateChange">A change of template that is under way, or null</param>
+    /// <param name="LogoUrl">Where the draft's logo can be looked at, or null when it has none</param>
     public sealed record SiteContentModel(SiteTemplate Template, SiteContentDocument Draft, int? PublishedVersion,
         DateTimeOffset? PublishedAt, bool HasUnpublishedChanges, IReadOnlyList<SiteTemplateOption>? Templates = null,
-        SiteTemplateChangeModel? TemplateChange = null);
+        SiteTemplateChangeModel? TemplateChange = null, string? LogoUrl = null);
 
     public sealed record SiteContentPublishedModel(int Version, DateTimeOffset PublishedAt);
 
@@ -35,8 +36,8 @@ namespace Elysian.Application.Features.SiteContent
     [Authorize(Policy = PolicyNames.SiteRead)]
     public record GetSiteContentQuery : IRequest<SiteContentModel>;
 
-    public class GetSiteContentQueryHandler(ElysianContext context, SiteContentReader reader, SiteTemplateChanger? changer = null)
-        : IRequestHandler<GetSiteContentQuery, SiteContentModel>
+    public class GetSiteContentQueryHandler(ElysianContext context, SiteContentReader reader, SiteTemplateChanger? changer = null,
+        IPlacementStore? store = null) : IRequestHandler<GetSiteContentQuery, SiteContentModel>
     {
         public async Task<SiteContentModel> Handle(GetSiteContentQuery request, CancellationToken cancellationToken)
         {
@@ -51,7 +52,10 @@ namespace Elysian.Application.Features.SiteContent
                 HasUnpublishedChanges: published == null || published.Json != draft.ToJson()
                     || published.TemplateKey != template.Key || published.TemplateVersion != template.Version,
                 Templates: changer?.Options() ?? [],
-                TemplateChange: changer == null ? null : await changer.PendingAsync(cancellationToken));
+                TemplateChange: changer == null ? null : await changer.PendingAsync(cancellationToken),
+                LogoUrl: draft.Logo == null || store == null
+                    ? null
+                    : store.GetPublicUrl(SiteLogoPaths.File(reader.Tenant.Identifier!, draft.Logo.Version, draft.Logo.Height)));
         }
     }
 
@@ -69,9 +73,13 @@ namespace Elysian.Application.Features.SiteContent
         public async Task<SiteContentDocument> Handle(SaveSiteContentDraftCommand request, CancellationToken cancellationToken)
         {
             var template = reader.Template();
-            var content = SiteContentReader.Checked(request.Content, template);
 
             var row = await context.SiteContentDrafts.FirstOrDefaultAsync(cancellationToken);
+
+            // The logo is not the editing screen's to send: whatever arrives, the stored one is kept
+            var content = SiteContentReader.Checked(
+                request.Content?.WithLogo(row == null ? null : SiteContentDocument.FromJson(row.Json).Logo), template);
+
             if (row == null)
             {
                 row = new SiteContentDraft();

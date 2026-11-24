@@ -59,11 +59,17 @@ namespace Elysian.Application.Features.Photos.Commands
     }
 
     public class CreatePhotoUploadCommandHandler(ElysianContext context, IPhotoStorage photoStorage,
-        IMultiTenantContextAccessor<ElysianTenantInfo> multiTenantContextAccessor)
+        IMultiTenantContextAccessor<ElysianTenantInfo> multiTenantContextAccessor, StorageQuota? quota = null)
         : IRequestHandler<CreatePhotoUploadCommand, CreatePhotoUploadResponse>
     {
         public async Task<CreatePhotoUploadResponse> Handle(CreatePhotoUploadCommand request, CancellationToken cancellationToken)
         {
+            // Before anything is recorded: a site over its storage limit takes no more photos
+            if (quota != null)
+            {
+                await quota.EnsureRoomAsync(request.FileSize, cancellationToken);
+            }
+
             var tenantIdentifier = multiTenantContextAccessor.MultiTenantContext.TenantInfo!.Identifier!;
             var photoId = Guid.NewGuid();
             var blobName = PhotoPaths.Original(tenantIdentifier, photoId, request.FileName);
