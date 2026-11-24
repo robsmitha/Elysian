@@ -33,6 +33,7 @@ namespace Elysian.Domain.Platforms
     /// add-on modules can be switched on later. A module in neither list can't be enabled for the platform's tenants.
     /// MerchantType names the kind of merchant record a new tenant gets. DefaultTemplate is the shared
     /// template a new cloud site is drawn with when none is asked for; null for a platform with no template.
+    /// FallbackTemplate is used in its place by a host that doesn't have the default one.
     /// </summary>
     public record PlatformDefinition(
         string Key,
@@ -41,7 +42,8 @@ namespace Elysian.Domain.Platforms
         IReadOnlyList<string> IncludedModules,
         IReadOnlyList<string> AddOnModules,
         string MerchantType,
-        string? DefaultTemplate = null)
+        string? DefaultTemplate = null,
+        string? FallbackTemplate = null)
     {
         public bool Offers(string module) =>
             IncludedModules.Contains(module, StringComparer.OrdinalIgnoreCase)
@@ -57,7 +59,8 @@ namespace Elysian.Domain.Platforms
             IncludedModules: [ModuleNames.Photos],
             AddOnModules: [ModuleNames.Booking, ModuleNames.Instagram],
             MerchantType: "Store",
-            DefaultTemplate: "classic");
+            DefaultTemplate: "journal",
+            FallbackTemplate: "classic");
 
         /// <summary>
         /// Sites built for one owner, with no shared template. Nothing is included; modules are switched on per tenant.

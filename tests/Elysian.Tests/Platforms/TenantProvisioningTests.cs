@@ -54,7 +54,7 @@ namespace Elysian.Tests.Platforms
             Assert.Equal(PlatformNames.Photography, tenant.Platform);
             Assert.Equal(RuntimeNames.Cloud, tenant.Runtime);
             Assert.Equal(TenantStatusNames.Active, tenant.Status);
-            // A cloud site starts on its platform's default template, at the newest version the host has
+            // This host has no journal template, so a cloud site starts on the fallback, at the newest version the host has
             Assert.Equal(("classic", 2), (tenant.TemplateKey, tenant.TemplateVersion));
             Assert.Equal(("classic", 2), (created.TemplateKey, created.TemplateVersion));
             Assert.Null(tenant.ContentVersion);
@@ -385,6 +385,20 @@ namespace Elysian.Tests.Platforms
         {
             var created = await CreateAsync(new CreateTenantCommand("friend", "Friend", "photography", "cloud", Template: " Gallery "));
             Assert.Equal(("gallery", 1), (created.TemplateKey, created.TemplateVersion));
+        }
+
+        [Fact]
+        public async Task A_new_cloud_site_starts_on_the_platforms_own_template_where_the_host_has_it()
+        {
+            Assert.Equal("journal", PlatformCatalog.Photography.DefaultTemplate);
+            var withJournal = SiteTemplateCatalog.FromJson(TemplateJson("classic", 2), TemplateJson("gallery", 1), TemplateJson("journal", 1));
+
+            var created = await CreateAsync(new CreateTenantCommand("friend", "Friend", "photography", "cloud"), withJournal);
+            Assert.Equal(("journal", 1), (created.TemplateKey, created.TemplateVersion));
+
+            // A host without it falls back to the one every host has, and never to whatever else is there
+            var older = await CreateAsync(new CreateTenantCommand("another", "Another", "photography", "cloud"));
+            Assert.Equal(("classic", 2), (older.TemplateKey, older.TemplateVersion));
         }
 
         [Fact]
