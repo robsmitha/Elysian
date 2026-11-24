@@ -5,7 +5,9 @@ using Elysian.Domain.Constants;
 using Elysian.Domain.Data;
 using Elysian.Domain.Security;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Logging;
+using System.Reflection;
 using System.Security.Claims;
 
 namespace Elysian.Infrastructure.Identity
@@ -153,24 +155,44 @@ namespace Elysian.Infrastructure.Identity
         }
 
         /// <summary>
-        /// Rows that store the sign-in id directly, rather than the user's key, follow the user to a new id.
-        /// Loaded and changed one by one (rather than ExecuteUpdate) so it runs in the same transaction as the user.
+        /// Rows that store the sign-in id directly, rather than the user's key, follow the user to a new id:
+        /// budgets and their months, categories and rules, income, debts, goals, saved bills, the assistant's
+        /// history and the GitHub connection. Which tables those are is read from the model
+        /// (<see cref="UserOwnedEntityTypes"/>), so a table added later is moved without anyone remembering to
+        /// list it here. Loaded and changed row by row (rather than ExecuteUpdate) so it runs in the same
+        /// transaction as the user.
         /// </summary>
         private async Task MoveUserDataAsync(string previousId, string newId)
         {
-            foreach (var budget in await context.Budgets.Where(b => b.UserId == previousId).ToListAsync())
+            foreach (var entityType in UserOwnedEntityTypes(context.Model))
             {
-                budget.UserId = newId;
-            }
-            foreach (var bill in await context.BillTrackings.Where(b => b.UserId == previousId).ToListAsync())
-            {
-                bill.UserId = newId;
-            }
-            foreach (var token in await context.OAuthTokens.Where(t => t.UserId == previousId && t.OAuthProvider == OAuthProviders.GitHub).ToListAsync())
-            {
-                token.UserId = newId;
+                var move = typeof(IdentityService).GetMethod(nameof(MoveRowsAsync), BindingFlags.NonPublic | BindingFlags.Instance)!
+                    .MakeGenericMethod(entityType.ClrType);
+                await (Task)move.Invoke(this, [previousId, newId])!;
             }
         }
+
+        private async Task MoveRowsAsync<T>(string previousId, string newId) where T : class
+        {
+            foreach (var row in await context.Set<T>().Where(e => EF.Property<string>(e, UserIdProperty) == previousId).ToListAsync())
+            {
+                // A token for any other provider belongs to the sign-in that is being left behind
+                if (row is OAuthToken token && token.OAuthProvider != OAuthProviders.GitHub)
+                {
+                    continue;
+                }
+                context.Entry(row).Property(UserIdProperty).CurrentValue = newId;
+            }
+        }
+
+        private const string UserIdProperty = "UserId";
+
+        /// <summary>
+        /// Every table that says whose a row is by holding the person's sign-in id in a text column named
+        /// UserId. Tables that point at the user's own row (a number) follow it without help.
+        /// </summary>
+        public static IEnumerable<IEntityType> UserOwnedEntityTypes(IModel model) =>
+            model.GetEntityTypes().Where(t => !t.IsOwned() && t.ClrType != typeof(User) && t.FindProperty(UserIdProperty)?.ClrType == typeof(string));
 
         private static string? EmailOf(ClaimsPrincipal principal)
         {
