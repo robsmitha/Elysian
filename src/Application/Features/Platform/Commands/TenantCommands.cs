@@ -103,11 +103,15 @@ namespace Elysian.Application.Features.Platform.Commands
                 ?? throw new InvalidOperationException($"The {definition.MerchantType} merchant type is missing, so a {definition.Name} site can't be created.");
 
             SiteTemplate? template = null;
-            var templateKey = string.IsNullOrWhiteSpace(request.Template) ? definition.DefaultTemplate : request.Template.Trim().ToLowerInvariant();
+            var asked = !string.IsNullOrWhiteSpace(request.Template);
+            var templateKey = asked ? request.Template!.Trim().ToLowerInvariant() : definition.DefaultTemplate;
             if (runtime == RuntimeNames.Cloud)
             {
-                // Without a template a cloud site could never be drawn, so it is not created half made
+                // Without a template a cloud site could never be drawn, so it is not created half made.
+                // A template that was asked for is that one or nothing; the platform's own choice falls
+                // back to the one every host has.
                 template = templates?.Latest(templateKey)
+                    ?? (asked ? null : templates?.Latest(definition.FallbackTemplate))
                     ?? throw new CustomValidationException([new FluentValidation.Results.ValidationFailure(nameof(request.Template),
                         $"This host has no template named {templateKey ?? "(none)"}.")]);
             }
