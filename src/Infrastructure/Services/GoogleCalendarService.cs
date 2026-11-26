@@ -120,14 +120,14 @@ namespace Elysian.Infrastructure.Services
             }, cancellationToken);
 
         public Task<string> VerifyAccessAsync(CancellationToken cancellationToken = default) =>
-            ExecuteAsync(service => GetCalendarIdAsync(service, cancellationToken), cancellationToken);
+            ExecuteAsync(service => GetCalendarNameAsync(service, cancellationToken), cancellationToken);
 
         public async Task<string> VerifyAccessAsync(string accessToken, CancellationToken cancellationToken = default)
         {
             using var service = CreateService(accessToken);
             try
             {
-                return await GetCalendarIdAsync(service, cancellationToken);
+                return await GetCalendarNameAsync(service, cancellationToken);
             }
             catch (GoogleApiException ex) when (IsAuthFailure(ex))
             {
@@ -135,12 +135,17 @@ namespace Elysian.Infrastructure.Services
             }
         }
 
-        private async Task<string> GetCalendarIdAsync(CalendarService service, CancellationToken cancellationToken)
+        /// <summary>
+        /// Reads through the events list, since that is all the events scope allows: asking for the calendar itself
+        /// (calendars.get) needs a broader grant than a photographer is asked for.
+        /// </summary>
+        private async Task<string> GetCalendarNameAsync(CalendarService service, CancellationToken cancellationToken)
         {
-            var request = service.Calendars.Get(CalendarId);
-            request.Fields = "id";
-            var calendar = await request.ExecuteAsync(cancellationToken);
-            return calendar.Id;
+            var request = service.Events.List(CalendarId);
+            request.MaxResults = 1;
+            request.Fields = "summary";
+            var events = await request.ExecuteAsync(cancellationToken);
+            return string.IsNullOrWhiteSpace(events.Summary) ? CalendarId : events.Summary;
         }
 
         private async Task<T> ExecuteAsync<T>(Func<CalendarService, Task<T>> action, CancellationToken cancellationToken)
@@ -180,8 +185,8 @@ namespace Elysian.Infrastructure.Services
 
         private CalendarAuthorizationException Forbidden(GoogleApiException ex) =>
             new(CalendarAuthorizationFailure.Forbidden,
-                $"Google refused access to calendar \"{CalendarId}\" ({(int)ex.HttpStatusCode}). Check GoogleCalendar:CalendarId and that the "
-                + "token was granted the Google Calendar scope, then reconnect in the admin app under Integrations > Google Calendar.", ex);
+                $"Google refused access to calendar \"{CalendarId}\" ({(int)ex.HttpStatusCode}). Reconnect it in the admin app under "
+                + "Integrations > Google Calendar, leaving the calendar permission ticked on Google's screen.", ex);
 
         private static CalendarEvent? ToCalendarEvent(Event item)
         {

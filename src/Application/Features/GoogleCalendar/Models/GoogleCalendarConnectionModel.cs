@@ -11,4 +11,9 @@ namespace Elysian.Application.Features.GoogleCalendar.Models
         DateTimeOffset? ConnectedUtc,
         DateTimeOffset? LastValidatedUtc,
         string? Error);
+
+    /// <summary>
+    /// Where to send the photographer to allow access at Google
+    /// </summary>
+    public record GoogleCalendarAuthorizationModel(string Url);
 }

@@ -109,13 +109,13 @@ namespace Elysian.Application.Features.Booking
 
                 {problem}
 
-                To fix it, sign in to the admin app, open Integrations > Google Calendar, and paste a new refresh token.
+                To fix it, sign in to the admin app, open Integrations > Google Calendar, and choose Connect Google Calendar.
                 """;
             var html = $"""
                 <h2 style="font-family: Georgia, serif; font-weight: normal;">Online booking is paused</h2>
                 <p style="font-family: Arial, sans-serif; font-size: 14px;">Online booking can't reach your Google Calendar, so clients are being sent to the Contact page instead.</p>
                 <p style="font-family: Arial, sans-serif; font-size: 14px;">{Encode(problem)}</p>
-                <p style="font-family: Arial, sans-serif; font-size: 14px;">To fix it, sign in to the admin app, open <strong>Integrations &rsaquo; Google Calendar</strong>, and paste a new refresh token.</p>
+                <p style="font-family: Arial, sans-serif; font-size: 14px;">To fix it, sign in to the admin app, open <strong>Integrations &rsaquo; Google Calendar</strong>, and choose <strong>Connect Google Calendar</strong>.</p>
                 """;
             return new OutgoingEmail(to, subject, html, text, From: FromAddress(booking));
         }

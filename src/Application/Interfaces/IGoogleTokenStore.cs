@@ -14,6 +14,11 @@ namespace Elysian.Application.Interfaces
         /// Stores the tokens as the tenant's only Google connection, replacing any other account
         /// </summary>
         Task SaveAsync(GoogleToken token, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Forgets the tenant's Google connection
+        /// </summary>
+        Task DeleteAsync(CancellationToken cancellationToken = default);
     }
 
     /// <param name="RefreshToken">Secret: never log it or return it from an endpoint</param>
