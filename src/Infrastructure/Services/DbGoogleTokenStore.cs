@@ -57,6 +57,16 @@ namespace Elysian.Infrastructure.Services
             await context.SaveChangesAsync(cancellationToken);
         }
 
+        public async Task DeleteAsync(CancellationToken cancellationToken = default)
+        {
+            var rows = await context.OAuthTokens
+                .Where(t => t.OAuthProvider == OAuthProviders.Google)
+                .ToListAsync(cancellationToken);
+
+            context.OAuthTokens.RemoveRange(rows);
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
         private static DateTimeOffset AsUtc(DateTime value) => new(DateTime.SpecifyKind(value, DateTimeKind.Utc));
 
         private static DateTimeOffset? AsUtc(DateTime? value) => value is DateTime v ? AsUtc(v) : null;

@@ -10,9 +10,13 @@ using Microsoft.Extensions.Logging;
 namespace Elysian.Application.Features.GoogleCalendar.Commands
 {
     /// <summary>
-    /// Connects (or replaces) the tenant's Google Calendar with a refresh token. The token is exchanged and the calendar
-    /// read before anything is stored, so a bad token never replaces a working one.
+    /// Connects (or replaces) the tenant's Google Calendar with a refresh token made by hand. The token is exchanged and
+    /// the calendar read before anything is stored, so a bad token never replaces a working one.
+    ///
+    /// For the people who run the platform, to repair a connection. A photographer connects with the button
+    /// (<see cref="StartGoogleCalendarConnectionCommand"/>).
     /// </summary>
+    [RequiresPlatformAdmin]
     [Authorize(Policy = PolicyNames.PhotoWrite)]
     public record ConnectGoogleCalendarCommand(string RefreshToken) : IRequest<GoogleCalendarConnectionModel>
     {

@@ -25,7 +25,8 @@ namespace Elysian.Application.Interfaces
         Task<bool> CreateEventAsync(NewCalendarEvent calendarEvent, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Lightweight call proving the token can read the calendar; returns the calendar's id (the account email for "primary")
+        /// Lightweight call proving the token can read the calendar's events; returns the calendar's name (the account
+        /// email for a main calendar that hasn't been renamed)
         /// </summary>
         Task<string> VerifyAccessAsync(CancellationToken cancellationToken = default);
 

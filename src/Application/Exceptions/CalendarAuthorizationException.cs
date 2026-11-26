@@ -8,7 +8,7 @@ namespace Elysian.Application.Exceptions
         : Exception(message, innerException)
     {
         public const string ReconnectHelp = "Google Calendar access was revoked or has expired (invalid_grant). Online booking is paused "
-            + "until it's reconnected: get a new refresh token for the calendar account and paste it in the admin app under Integrations > Google Calendar.";
+            + "until it's reconnected: sign in to the admin app, open Integrations > Google Calendar and choose Connect Google Calendar.";
 
         public CalendarAuthorizationFailure Failure { get; } = failure;
     }
