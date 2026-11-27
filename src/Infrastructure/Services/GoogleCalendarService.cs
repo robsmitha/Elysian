@@ -35,7 +35,7 @@ namespace Elysian.Infrastructure.Services
                     request.ShowDeleted = false;
                     request.MaxResults = 2500;
                     request.PageToken = pageToken;
-                    request.Fields = "nextPageToken,items(status,start,end,attendees(self,responseStatus))";
+                    request.Fields = "nextPageToken,items(status,start,end,transparency,extendedProperties/private,attendees(self,responseStatus))";
 
                     var page = await request.ExecuteAsync(cancellationToken);
                     foreach (var item in page.Items ?? [])
@@ -47,7 +47,13 @@ namespace Elysian.Infrastructure.Services
 
                         if (ToCalendarEvent(item) is CalendarEvent calendarEvent)
                         {
-                            events.Add(calendarEvent);
+                            events.Add(calendarEvent with
+                            {
+                                IsBooking = item.ExtendedProperties?.Private__ != null
+                                    && item.ExtendedProperties.Private__.TryGetValue(Application.Features.Booking.Commands.CreateBookingCommandHandler.SourceProperty, out var booked)
+                                    && booked == "true",
+                                IsFree = item.Transparency == "transparent",
+                            });
                         }
                     }
                     pageToken = page.NextPageToken;

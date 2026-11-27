@@ -4,6 +4,25 @@ using Elysian.Infrastructure.Settings;
 namespace Elysian.Application.Features.Booking
 {
     /// <summary>
+    /// How the values in <see cref="BookingSettings"/> are written: days by name, times as "07:30". One place,
+    /// so what the settings page accepts and what the rules can read are the same thing.
+    /// </summary>
+    public static class BookingDays
+    {
+        public static DayOfWeek? Find(string? name) =>
+            Enum.GetValues<DayOfWeek>().Cast<DayOfWeek?>().FirstOrDefault(d => string.Equals(d.ToString(), name?.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        public static BookingSettings.BookingOtherEvents? FindOtherEvents(string? name) =>
+            Enum.GetValues<BookingSettings.BookingOtherEvents>().Cast<BookingSettings.BookingOtherEvents?>()
+                .FirstOrDefault(d => string.Equals(d.ToString(), name?.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        public static TimeOnly? FindTime(string? value) =>
+            TimeOnly.TryParseExact(value, ["H:mm", "HH:mm"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var time) ? time : null;
+
+        public static string Write(TimeOnly time) => time.ToString("HH:mm", CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
     /// <see cref="BookingSettings"/> parsed and checked once, so a bad setting fails loudly instead of quietly offering no times
     /// </summary>
     public sealed record BookingRules(
@@ -12,7 +31,9 @@ namespace Elysian.Application.Features.Booking
         TimeOnly LatestEnd,
         TimeSpan SlotIncrement,
         TimeSpan Buffer,
-        int MaxEventsPerDay,
+        IReadOnlySet<DayOfWeek> Days,
+        int MaxSessionsPerDay,
+        BookingSettings.BookingOtherEvents OtherEvents,
         int MinimumNoticeDays,
         int HorizonMonths)
     {
@@ -34,13 +55,29 @@ namespace Elysian.Application.Features.Booking
                 throw new InvalidOperationException($"{BookingSettings.SectionName}:SlotIncrementMinutes must be positive.");
             }
 
+            var days = new HashSet<DayOfWeek>();
+            foreach (var name in settings.Days ?? [])
+            {
+                days.Add(BookingDays.Find(name) ?? throw new InvalidOperationException(
+                    $"{BookingSettings.SectionName}:Days must be names of days like \"Saturday\", not \"{name}\"."));
+            }
+            if (days.Count == 0)
+            {
+                days.UnionWith(Enum.GetValues<DayOfWeek>());
+            }
+
+            var otherEvents = BookingDays.FindOtherEvents(settings.OtherEvents) ?? throw new InvalidOperationException(
+                $"{BookingSettings.SectionName}:OtherEvents must be CloseDay or BlockTime, not \"{settings.OtherEvents}\".");
+
             return new BookingRules(
                 timeZone,
                 windows,
                 ParseTime(settings.LatestEnd, nameof(BookingSettings.LatestEnd)),
                 TimeSpan.FromMinutes(settings.SlotIncrementMinutes),
                 TimeSpan.FromMinutes(Math.Max(0, settings.BufferMinutes)),
-                Math.Max(0, settings.MaxEventsPerDay),
+                days,
+                Math.Max(0, settings.MaxSessionsPerDay),
+                otherEvents,
                 Math.Max(0, settings.MinimumNoticeDays),
                 Math.Max(0, settings.HorizonMonths));
         }
@@ -88,7 +125,7 @@ namespace Elysian.Application.Features.Booking
         }
 
         private static TimeOnly ParseTime(string value, string name) =>
-            TimeOnly.TryParseExact(value, ["H:mm", "HH:mm"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var time)
+            BookingDays.FindTime(value) is TimeOnly time
                 ? time
                 : throw new InvalidOperationException($"{BookingSettings.SectionName}:{name} must be a time like \"07:30\", not \"{value}\".");
     }

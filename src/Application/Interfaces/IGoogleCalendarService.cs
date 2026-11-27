@@ -40,7 +40,10 @@ namespace Elysian.Application.Interfaces
     /// An event as a time range. All-day events carry dates instead (end exclusive), since they cover whole days
     /// wherever the calendar is viewed; <see cref="Features.Booking.SlotCalculator"/> places them in the photographer's time zone.
     /// </summary>
-    public record CalendarEvent(DateTimeOffset? Start, DateTimeOffset? End, DateOnly? AllDayStart, DateOnly? AllDayEnd)
+    /// <param name="IsBooking">A session booked through the site, as opposed to anything else on the calendar</param>
+    /// <param name="IsFree">Marked as not taking up the owner's time ("Free" in Google Calendar, its default for all-day events)</param>
+    public record CalendarEvent(DateTimeOffset? Start, DateTimeOffset? End, DateOnly? AllDayStart, DateOnly? AllDayEnd,
+        bool IsBooking = false, bool IsFree = false)
     {
         public static CalendarEvent Timed(DateTimeOffset start, DateTimeOffset end) => new(start, end, null, null);
 

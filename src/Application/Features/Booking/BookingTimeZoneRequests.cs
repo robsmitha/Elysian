@@ -74,36 +74,9 @@ namespace Elysian.Application.Features.Booking
                 throw new CustomValidationException([new ValidationFailure(nameof(request.TimeZone), "Please choose a time zone from the list.")]);
             }
 
-            var row = await context.TenantSettings.FirstOrDefaultAsync(s => s.Section == BookingSettings.SectionName, cancellationToken);
-            if (row == null)
-            {
-                row = new TenantSetting { Section = BookingSettings.SectionName, Json = "{}" };
-                context.TenantSettings.Add(row);
-            }
-
-            JObject json;
-            try
-            {
-                json = string.IsNullOrWhiteSpace(row.Json) ? [] : JObject.Parse(row.Json);
-            }
-            catch (Newtonsoft.Json.JsonException)
-            {
-                throw new ConflictException("This site's booking settings can't be read, so the time zone wasn't changed.");
-            }
-
-            // Settings are read without regard to case, so "timeZone" and "TimeZone" are the same value
-            foreach (var existing in json.Properties().Where(p => string.Equals(p.Name, nameof(BookingSettings.TimeZone), StringComparison.OrdinalIgnoreCase)).ToList())
-            {
-                existing.Remove();
-            }
-            json[nameof(BookingSettings.TimeZone)] = zone.Id;
-            row.Json = json.ToString(Newtonsoft.Json.Formatting.None);
-
-            await context.SaveChangesAsync(cancellationToken);
-
-            // This instance reads the new value at once; others pick it up when their copy runs out
-            var tenantId = multiTenantContextAccessor.MultiTenantContext.TenantInfo!.Id!;
-            cache.Remove(TenantSettingsSection.CacheKey(tenantId, BookingSettings.SectionName));
+            await BookingSettingsWriter.WriteAsync(context, cache, multiTenantContextAccessor,
+                new Dictionary<string, JToken> { [nameof(BookingSettings.TimeZone)] = zone.Id },
+                "This site's booking settings can't be read, so the time zone wasn't changed.", cancellationToken);
 
             return new BookingTimeZoneModel(zone.Id, BookingTimeZones.All);
         }

@@ -29,15 +29,26 @@ namespace Elysian.Infrastructure.Settings
         public int SlotIncrementMinutes { get; set; } = 30;
 
         /// <summary>
-        /// Gap kept clear before and after each session. Only matters once <see cref="MaxEventsPerDay"/> is above zero.
+        /// Gap kept clear before and after each session, and around anything else that blocks time
         /// </summary>
         public int BufferMinutes { get; set; }
 
         /// <summary>
-        /// Calendar events a day can already have and still take a booking (as long as nothing overlaps).
-        /// 0 means any event at all (a session, a birthday, an all-day reminder) closes the day.
+        /// Days of the week sessions are offered on, by English name ("Saturday"). Empty means every day.
         /// </summary>
-        public int MaxEventsPerDay { get; set; }
+        public List<string> Days { get; set; } = [];
+
+        /// <summary>
+        /// Sessions booked through the site a day can hold. 0 means no limit.
+        /// </summary>
+        public int MaxSessionsPerDay { get; set; } = 1;
+
+        /// <summary>
+        /// What anything else on the calendar does: "CloseDay" (a birthday, an all-day reminder, anything at all
+        /// takes the day off the booking page) or "BlockTime" (only the time it covers is taken, and events
+        /// marked Free are ignored)
+        /// </summary>
+        public string OtherEvents { get; set; } = nameof(BookingOtherEvents.CloseDay);
 
         /// <summary>
         /// Earliest bookable day is today plus this many days (e.g. 7 = a week out)
@@ -63,6 +74,12 @@ namespace Elysian.Infrastructure.Settings
         /// Shown to clients in emails as where to reach the photographer
         /// </summary>
         public string? ContactEmailAddress { get; set; }
+
+        public enum BookingOtherEvents
+        {
+            CloseDay,
+            BlockTime,
+        }
 
         public class StartWindow
         {
