@@ -272,6 +272,56 @@ namespace Elysian.Tests.Sites
             Assert.Equal(["categories.families", "categories.pets", "categories.weddings", "links.facebook", "links.tiktok"], problems.Select(p => p.Field).Order());
         }
 
+        // A template that lists more kinds of work than most sites offer, with only some on to begin with
+        private static readonly SiteTemplate Wide = SiteTemplate.FromJson(Schema.Replace(
+            """{ "slug": "families", "name": "Families" } ]""",
+            """{ "slug": "families", "name": "Families" }, { "slug": "newborns", "name": "Newborns", "enabled": false }, { "slug": "events", "name": "Events", "enabled": false } ]"""));
+
+        [Fact]
+        public void A_category_is_on_to_begin_with_unless_its_template_says_otherwise()
+        {
+            Assert.Equal([true, true], Template.Categories.Select(c => c.Enabled));
+            Assert.Equal([true, true, false, false], Wide.Categories.Select(c => c.Enabled));
+        }
+
+        [Fact]
+        public void A_new_site_has_only_the_categories_its_template_starts_with_and_can_turn_the_others_on()
+        {
+            var content = SiteContentDocument.DefaultFor(Wide).Normalize();
+
+            Assert.Empty(content.Validate(Wide));
+            Assert.Equal(["weddings", "families", "newborns", "events"], content.Categories.Select(c => c.Slug));
+            Assert.Equal([true, true, false, false], content.Categories.Select(c => c.Enabled));
+
+            var turnedOn = Content(categories: [new("weddings", null), new("families", null), new("newborns", "Fresh 48"), new("events", null, false)]);
+            Assert.Empty(turnedOn.Normalize().Validate(Wide));
+        }
+
+        [Fact]
+        public void A_category_the_owner_never_mentioned_counts_as_its_template_has_it()
+        {
+            // Both of the ones that start on are switched off, and the others were never mentioned: nothing is left
+            var nothingLeft = Content(categories: [new("weddings", null, false), new("families", null, false)]).Normalize().Validate(Wide);
+            Assert.Equal("categories", Assert.Single(nothingLeft).Field);
+
+            // One that starts off is switched on instead
+            Assert.Empty(Content(categories: [new("weddings", null, false), new("families", null, false), new("events", null)]).Normalize().Validate(Wide));
+
+            // Nothing mentioned at all: the template's own are on
+            Assert.Empty(Content().Normalize().Validate(Wide));
+        }
+
+        [Fact]
+        public void A_template_needs_a_category_that_is_on_to_begin_with()
+        {
+            var json = Schema
+                .Replace("""{ "slug": "weddings", "name": "Weddings" }""", """{ "slug": "weddings", "name": "Weddings", "enabled": false }""")
+                .Replace("""{ "slug": "families", "name": "Families" }""", """{ "slug": "families", "name": "Families", "enabled": false }""");
+
+            var error = Assert.Throws<InvalidOperationException>(() => SiteTemplate.FromJson(json));
+            Assert.Contains("on to begin with", error.Message);
+        }
+
         [Fact]
         public void At_least_one_category_stays_on()
         {

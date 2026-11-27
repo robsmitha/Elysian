@@ -48,7 +48,8 @@ namespace Elysian.Application.Features.SiteContent
         public IReadOnlyDictionary<string, string> Links { get; init; } = new Dictionary<string, string>();
 
         /// <summary>
-        /// The categories in the order the site lists them. One left out is shown as the template defines it.
+        /// The categories in the order the site lists them. One left out is as the template defines it: its
+        /// name, and whether it is on to begin with.
         /// </summary>
         public IReadOnlyList<SiteContentCategory> Categories { get; init; } = [];
 
@@ -67,12 +68,13 @@ namespace Elysian.Application.Features.SiteContent
         };
 
         /// <summary>
-        /// A new site's content: the template's first palette and font, its default wording, every category on
+        /// A new site's content: the template's first palette and font, its default wording, and the
+        /// categories the template has on to begin with
         /// </summary>
         public static SiteContentDocument DefaultFor(SiteTemplate template) => new()
         {
             Theme = new SiteContentTheme(template.Palettes[0].Key, null, template.Fonts[0].Key),
-            Categories = [.. template.Categories.Select(c => new SiteContentCategory(c.Slug, null))],
+            Categories = [.. template.Categories.Select(c => new SiteContentCategory(c.Slug, null, c.Enabled))],
         };
 
         /// <exception cref="InvalidOperationException">When the text isn't a content document at all</exception>
@@ -195,8 +197,13 @@ namespace Elysian.Application.Features.SiteContent
                 Add("logo", SiteLogoPaths.IsWellFormed(Logo) ? null : "The logo isn't one that was uploaded here. Upload it again.");
             }
 
-            var off = Categories.Where(c => !c.Enabled).Select(c => c.Slug).ToHashSet(StringComparer.Ordinal);
-            if (template.Categories.All(c => off.Contains(c.Slug)))
+            // What the owner said, and for a category they never mentioned, what the template says
+            var chosen = new Dictionary<string, bool>(StringComparer.Ordinal);
+            foreach (var category in Categories)
+            {
+                chosen.TryAdd(category.Slug, category.Enabled);
+            }
+            if (template.Categories.All(c => !(chosen.TryGetValue(c.Slug, out var enabled) ? enabled : c.Enabled)))
             {
                 Add("categories", "Keep at least one category switched on.");
             }
