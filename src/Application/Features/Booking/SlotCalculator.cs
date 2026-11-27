@@ -1,4 +1,5 @@
 using Elysian.Application.Interfaces;
+using Elysian.Infrastructure.Settings;
 
 namespace Elysian.Application.Features.Booking
 {
@@ -24,7 +25,7 @@ namespace Elysian.Application.Features.Booking
             var first = Max(from, rules.FirstBookableDate(now));
             var last = Min(to, rules.LastBookableDate(now));
 
-            var periods = events.Select(e => ToPeriod(rules, e)).ToList();
+            var periods = events.Select(e => new Period(ToPeriod(rules, e), e.IsBooking, e.IsFree)).ToList();
 
             for (var date = first; date <= last; date = date.AddDays(1))
             {
@@ -45,19 +46,34 @@ namespace Elysian.Application.Features.Booking
             (rules.StartOfDay(from), rules.StartOfDay(to.AddDays(1)));
 
         private static List<DateTimeOffset> GetSlotsForDay(BookingRules rules, TimeSpan duration, DateOnly date,
-            List<(DateTimeOffset Start, DateTimeOffset End)> periods, DateTimeOffset now)
+            List<Period> periods, DateTimeOffset now)
         {
             var slots = new List<DateTimeOffset>();
 
-            var dayStart = rules.StartOfDay(date);
-            var dayEnd = rules.StartOfDay(date.AddDays(1));
-            var sameDay = periods.Where(p => p.Start < dayEnd && p.End > dayStart).ToList();
-
-            // At the limit (0 by default: any event at all) the whole day is taken
-            if (sameDay.Count > rules.MaxEventsPerDay)
+            if (!rules.Days.Contains(date.DayOfWeek))
             {
                 return slots;
             }
+
+            var dayStart = rules.StartOfDay(date);
+            var dayEnd = rules.StartOfDay(date.AddDays(1));
+            var sameDay = periods.Where(p => p.Time.Start < dayEnd && p.Time.End > dayStart).ToList();
+
+            // The day has all the sessions it takes
+            if (rules.MaxSessionsPerDay > 0 && sameDay.Count(p => p.IsBooking) >= rules.MaxSessionsPerDay)
+            {
+                return slots;
+            }
+
+            // Anything else on the calendar either closes the day (a birthday, a reminder marked Free: anything
+            // at all) or takes only its own time, and then one marked Free takes none
+            var closesDay = rules.OtherEvents == BookingSettings.BookingOtherEvents.CloseDay;
+            if (closesDay && sameDay.Any(p => !p.IsBooking))
+            {
+                return slots;
+            }
+
+            var taken = sameDay.Where(p => p.IsBooking || !p.IsFree).Select(p => p.Time).ToList();
 
             if (rules.ToInstant(date, rules.LatestEnd) is not DateTimeOffset latestEnd)
             {
@@ -74,7 +90,7 @@ namespace Elysian.Application.Features.Booking
                         var end = start + duration;
                         var fits = start > now
                             && end <= latestEnd
-                            && !sameDay.Any(p => start - rules.Buffer < p.End && end + rules.Buffer > p.Start);
+                            && !taken.Any(p => start - rules.Buffer < p.End && end + rules.Buffer > p.Start);
 
                         if (fits && !slots.Contains(start))
                         {
@@ -99,6 +115,8 @@ namespace Elysian.Application.Features.Booking
             var allDayEnd = e.AllDayEnd ?? allDayStart.AddDays(1);
             return (rules.StartOfDay(allDayStart), rules.StartOfDay(allDayEnd));
         }
+
+        private readonly record struct Period((DateTimeOffset Start, DateTimeOffset End) Time, bool IsBooking, bool IsFree);
 
         private static DateOnly Max(DateOnly a, DateOnly b) => a > b ? a : b;
 
