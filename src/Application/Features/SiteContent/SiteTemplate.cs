@@ -63,9 +63,14 @@ namespace Elysian.Application.Features.SiteContent
 
     /// <summary>
     /// A photo category the template has pages for. The slug is in public addresses and storage paths and never
-    /// changes; an owner can rename a category and switch it off.
+    /// changes; an owner can rename a category and switch it on or off.
     /// </summary>
-    public sealed record SiteTemplateCategory(string Slug, string Name);
+    /// <param name="Enabled">
+    /// Whether a site shows it before its owner has said either way. A template lists every kind of work it has
+    /// pages for and switches on the few most sites offer; the rest are there for an owner to turn on.
+    /// Left out of a schema, a category is on.
+    /// </param>
+    public sealed record SiteTemplateCategory(string Slug, string Name, bool Enabled = true);
 
     /// <summary>
     /// What one version of a shared template lets a site's owner change: which palettes and fonts exist, which
@@ -302,6 +307,7 @@ namespace Elysian.Application.Features.SiteContent
             Require(Links.All(IsKey), $"{name}: link names must be lowercase letters, digits, dots and dashes.");
 
             Require(Categories.Count > 0, $"{name}: at least one category is needed.");
+            Require(Categories.Any(c => c.Enabled), $"{name}: at least one category must be on to begin with.");
             Unique(Categories.Select(c => c.Slug), $"{name}: category");
             Require(Categories.All(c => IsKey(c.Slug) && !c.Slug.Contains('.') && SiteContentRules.CategoryNameProblem(c.Name) == null),
                 $"{name}: every category needs a slug of lowercase letters, digits and dashes, and a name of {SiteContentRules.MaxCategoryNameLength} characters or fewer.");
