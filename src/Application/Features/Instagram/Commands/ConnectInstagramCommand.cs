@@ -14,7 +14,11 @@ namespace Elysian.Application.Features.Instagram.Commands
     /// <summary>
     /// Connects (or replaces) the tenant's Instagram account with a long-lived token generated in the Meta app
     /// dashboard. The token is verified with Instagram before it's stored, then the posts are synced right away.
+    ///
+    /// For the people who run the platform, to repair a connection. A photographer connects with the button
+    /// (<see cref="StartInstagramConnectionCommand"/>).
     /// </summary>
+    [RequiresPlatformAdmin]
     [Authorize(Policy = PolicyNames.PhotoWrite)]
     public record ConnectInstagramCommand(string AccessToken) : IRequest<InstagramConnectionModel>
     {

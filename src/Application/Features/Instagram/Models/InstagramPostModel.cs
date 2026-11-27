@@ -29,4 +29,9 @@ namespace Elysian.Application.Features.Instagram.Models
         DateTimeOffset? LastSyncedUtc,
         int PostCount,
         string? Error);
+
+    /// <summary>
+    /// Where to send the photographer to approve on Instagram
+    /// </summary>
+    public record InstagramAuthorizationModel(string Url);
 }

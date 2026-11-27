@@ -51,7 +51,7 @@ namespace Elysian.Application.Features.Instagram.Queries
                 }
                 catch (InstagramApiException ex) when (ex.IsInvalidToken)
                 {
-                    error = "Instagram rejected the stored token (error 190). Generate a new long-lived token in the Meta app dashboard and connect again.";
+                    error = "Instagram no longer accepts this connection. Choose Reconnect Instagram to restore it.";
                 }
                 catch (InstagramApiException ex)
                 {

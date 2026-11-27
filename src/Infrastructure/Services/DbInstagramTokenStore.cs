@@ -1,3 +1,4 @@
+using Elysian.Application.Features.Instagram;
 using Elysian.Application.Interfaces;
 using Elysian.Domain.Constants;
 using Elysian.Domain.Data;
@@ -15,10 +16,7 @@ namespace Elysian.Infrastructure.Services
     {
         private const string TokenType = "bearer";
 
-        /// <summary>
-        /// The only permission the feed needs (Instagram API with Instagram Login)
-        /// </summary>
-        private const string Scope = "instagram_business_basic";
+        private const string Scope = InstagramPermissions.Basic;
 
         public async Task<InstagramToken?> GetAsync(CancellationToken cancellationToken = default)
         {
@@ -54,6 +52,16 @@ namespace Elysian.Infrastructure.Services
             row.CreatedAt = token.LastRefreshedUtc.UtcDateTime;
             row.ExpiresAt = token.ExpiresUtc?.UtcDateTime;
 
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task DeleteAsync(CancellationToken cancellationToken = default)
+        {
+            var rows = await context.OAuthTokens
+                .Where(t => t.OAuthProvider == OAuthProviders.Instagram)
+                .ToListAsync(cancellationToken);
+
+            context.OAuthTokens.RemoveRange(rows);
             await context.SaveChangesAsync(cancellationToken);
         }
 

@@ -40,8 +40,9 @@ namespace Elysian.Application.Features.Instagram.Commands
         TimeProvider timeProvider, ILogger<SyncInstagramPostsCommandHandler> logger)
         : IRequestHandler<SyncInstagramPostsCommand, InstagramSyncResult>
     {
-        // The timer and a manual connect can overlap; two syncs would race to insert the same posts
-        private static readonly SemaphoreSlim SyncLock = new(1, 1);
+        // The timer and a manual connect can overlap; two syncs would race to insert the same posts. Disconnecting
+        // takes it too, so a sync that is part way through can't put posts back.
+        internal static readonly SemaphoreSlim SyncLock = new(1, 1);
 
         public async Task<InstagramSyncResult> Handle(SyncInstagramPostsCommand request, CancellationToken cancellationToken)
         {

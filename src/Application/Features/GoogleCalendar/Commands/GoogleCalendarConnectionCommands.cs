@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Elysian.Application.Exceptions;
 using Elysian.Application.Features.GoogleCalendar.Models;
 using Elysian.Application.Interfaces;
@@ -16,19 +14,15 @@ using Microsoft.Extensions.Logging;
 namespace Elysian.Application.Features.GoogleCalendar.Commands
 {
     /// <summary>
-    /// The "state" value that travels to Google and back. It names the site, so the one return page shared by every
-    /// tenant knows whose connection this is, and ends in a random value that is stored against the person who started
-    /// and accepted once, within <see cref="Lifetime"/>.
+    /// The "state" value that travels to Google and back: see <see cref="OAuthConnectionState"/>
     /// </summary>
     public static class GoogleCalendarConnectionState
     {
-        public static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(10);
+        public static readonly TimeSpan Lifetime = OAuthConnectionState.Lifetime;
 
-        public static string Create(string siteIdentifier) =>
-            $"{siteIdentifier}.{Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant()}";
+        public static string Create(string siteIdentifier) => OAuthConnectionState.Create(siteIdentifier);
 
-        public static bool Matches(string stored, string returned) =>
-            CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(stored), Encoding.UTF8.GetBytes(returned));
+        public static bool Matches(string stored, string returned) => OAuthConnectionState.Matches(stored, returned);
     }
 
     /// <summary>

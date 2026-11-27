@@ -2,11 +2,32 @@ namespace Elysian.Infrastructure.Settings
 {
     /// <summary>
     /// Bound from the "Instagram" configuration section (Instagram API with Instagram Login, graph.instagram.com).
-    /// The access token itself is per tenant and lives in the OAuthToken table, set through ConnectInstagramCommand.
+    /// The access token itself is per tenant and lives in the OAuthToken table, stored when the photographer connects
+    /// their account (CompleteInstagramConnectionCommand).
     /// </summary>
     public class InstagramSettings
     {
         public const string SectionName = "Instagram";
+
+        /// <summary>
+        /// The platform's Meta app: the "Instagram app ID" from its Instagram business login settings, which is not
+        /// the Meta app ID
+        /// </summary>
+        [PlatformOnly]
+        public string AppId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The "Instagram app secret" from the same place. Secret: never log it.
+        /// </summary>
+        [PlatformOnly]
+        public string AppSecret { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Where Instagram sends the photographer back after they approve: one page in the admin app for every
+        /// tenant. It must match an OAuth redirect URI in the app's business login settings exactly.
+        /// </summary>
+        [PlatformOnly]
+        public string RedirectUri { get; set; } = string.Empty;
 
         /// <summary>
         /// Number of recent posts mirrored from Instagram
