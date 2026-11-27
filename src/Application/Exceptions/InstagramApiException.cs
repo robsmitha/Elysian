@@ -10,8 +10,8 @@ namespace Elysian.Application.Exceptions
         /// </summary>
         public const int InvalidTokenErrorCode = 190;
 
-        public const string InvalidTokenHelp = "The Instagram access token is invalid or expired (error 190). Generate a new long-lived "
-            + "token for the Instagram account in the Meta app dashboard and update Instagram:AccessToken.";
+        public const string InvalidTokenHelp = "The Instagram access token is invalid or expired (error 190). The account "
+            + "has to be connected again from the admin app.";
 
         public InstagramApiException(string message, int? statusCode = null, int? errorCode = null, Exception? innerException = null)
             : base(message, innerException)

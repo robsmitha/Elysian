@@ -389,7 +389,7 @@ namespace Elysian.Infrastructure
         }
 
         /// <summary>
-        /// Instagram feed: per-tenant tokens in the OAuthToken table (connected with ConnectInstagramCommand) and a
+        /// Instagram feed: per-tenant tokens in the OAuthToken table (connected with CompleteInstagramConnectionCommand) and a
         /// mirror of recent posts with thumbnails in the public photos container. Requires <see cref="AddAzureStorageFeatures"/>
         /// and <see cref="AddPhotoFeatures"/>. Hosts schedule <c>SyncInstagramPostsCommand</c> and
         /// <c>RefreshInstagramTokenCommand</c> themselves (e.g. timers), with the tenant set.
@@ -409,6 +409,12 @@ namespace Elysian.Infrastructure
             {
                 httpClient.BaseAddress = new Uri("https://graph.instagram.com/");
                 httpClient.Timeout = TimeSpan.FromSeconds(60);
+            }).RemoveAllLoggers();
+
+            // The app secret and tokens ride in these requests too
+            services.AddHttpClient<IInstagramOAuthClient, InstagramOAuthClient>(httpClient =>
+            {
+                httpClient.Timeout = TimeSpan.FromSeconds(30);
             }).RemoveAllLoggers();
 
             return services;
