@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json.Serialization;
 using Elysian.Application.Exceptions;
+using Elysian.Application.Features.Contact;
 using Elysian.Application.Interfaces;
 using Elysian.Infrastructure.Settings;
 using FluentValidation;
@@ -15,6 +16,8 @@ namespace Elysian.Application.Features.Contact.Commands
     /// Public contact form submission, emailed to Resend:ToEmailAddress with the visitor as Reply-To.
     /// Anonymous by design: protected by a honeypot (<see cref="Website"/>) and human verification
     /// (<see cref="TurnstileToken"/>). Hosts should also rate limit the endpoint per client.
+    /// A message that reads like a sales pitch is still delivered, with its subject marked
+    /// (<see cref="ContactSpamRules"/>, <see cref="IContactSpamFilter"/>).
     /// </summary>
     /// <param name="ReferralSource">How the visitor heard about the business, e.g. "Instagram" or "Other: a wedding fair". Optional.</param>
     public record SendContactMessageCommand(
@@ -81,9 +84,12 @@ namespace Elysian.Application.Features.Contact.Commands
 
     public class SendContactMessageCommandHandler(IHumanVerificationService humanVerificationService, IEmailService emailService,
         ITenantSettings<ResendSettings> resendSettings, ILogger<SendContactMessageCommandHandler> logger,
-        Elysian.Infrastructure.Context.ElysianContext? context = null)
+        Elysian.Infrastructure.Context.ElysianContext? context = null, IContactSpamFilter? spamFilter = null)
         : IRequestHandler<SendContactMessageCommand, bool>
     {
+        /// <summary>Starts the subject of a message that reads like a sales pitch, so an inbox rule can file it</summary>
+        public const string SpamSubjectPrefix = "[Possible spam] ";
+
         public async Task<bool> Handle(SendContactMessageCommand request, CancellationToken cancellationToken)
         {
             if (request.IsBot)
@@ -121,21 +127,36 @@ namespace Elysian.Application.Features.Contact.Commands
             var message = string.IsNullOrWhiteSpace(request.Message) ? "No message provided." : request.Message.Trim();
             var referral = string.IsNullOrWhiteSpace(request.ReferralSource) ? "Not provided" : request.ReferralSource.Trim();
 
+            // Read for a sales pitch. Whatever the answer, the message is delivered: a flagged one is marked,
+            // never dropped, so a wrong guess can't lose an inquiry.
+            var verdict = spamFilter == null
+                ? ContactSpamVerdict.NotChecked
+                : await spamFilter.CheckAsync(new ContactMessageText(name, email, subject, message), cancellationToken);
+            string? flag = null;
+            if (verdict.IsSpam)
+            {
+                flag = $"Marked as possible spam{(string.IsNullOrWhiteSpace(verdict.Reason) ? "" : $": {verdict.Reason}")}. Delivered anyway in case it is not.";
+                logger.LogInformation("Contact submission marked as possible spam by {Source}: {Reason}", verdict.Source, verdict.Reason);
+            }
+
             await emailService.SendAsync(new OutgoingEmail(
                 To: toAddress,
-                Subject: $"New inquiry from {name}: {subject}",
-                HtmlBody: BuildHtml(name, email, phone, subject, referral, message),
-                TextBody: $"Name: {name}\nEmail: {email}\nPhone: {phone}\nSubject: {subject}\nHeard about us: {referral}\n\n{message}",
+                Subject: $"{(verdict.IsSpam ? SpamSubjectPrefix : "")}New inquiry from {name}: {subject}",
+                HtmlBody: BuildHtml(name, email, phone, subject, referral, message, flag),
+                TextBody: $"{(flag == null ? "" : $"{flag}\n\n")}Name: {name}\nEmail: {email}\nPhone: {phone}\nSubject: {subject}\nHeard about us: {referral}\n\n{message}",
                 ReplyTo: email), cancellationToken);
 
             return true;
         }
 
-        private static string BuildHtml(string name, string email, string phone, string subject, string referral, string message)
+        private static string BuildHtml(string name, string email, string phone, string subject, string referral, string message, string? flag = null)
         {
             static string Encode(string value) => WebUtility.HtmlEncode(value);
 
+            var note = flag == null ? "" : $"<p style=\"font-family: Arial, sans-serif; font-size: 13px; color: #8a5a00; background: #fff6e0; padding: 8px 12px;\">{Encode(flag)}</p>";
+
             return $"""
+                {note}
                 <h2 style="font-family: Georgia, serif; font-weight: normal;">New contact form inquiry</h2>
                 <table cellpadding="6" style="font-family: Arial, sans-serif; font-size: 14px;">
                     <tr><td><strong>Name</strong></td><td>{Encode(name)}</td></tr>

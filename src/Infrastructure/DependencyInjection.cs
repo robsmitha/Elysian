@@ -318,10 +318,17 @@ namespace Elysian.Infrastructure
         /// Public contact form: Turnstile verification and delivery through Resend.
         /// Reads the "Resend" (ApiKey, ToEmailAddress, FromEmailAddress) and "Turnstile" (SecretKey) sections.
         /// Rate limiting is left to the host, since it depends on how the host sees client IPs.
+        /// A message that reads like a sales pitch is delivered with its subject marked: rules decide, and
+        /// Claude is asked about what they pass when "Anthropic:ApiKey" is set ("ContactSpam" section).
         /// </summary>
         public static IServiceCollection AddContactFeatures(this IServiceCollection services, IConfiguration configuration)
         {
             services.Configure<TurnstileSettings>(configuration.GetSection(TurnstileSettings.SectionName));
+            services.Configure<ContactSpamSettings>(configuration.GetSection(ContactSpamSettings.SectionName));
+            services.Configure<AnthropicSettings>(configuration.GetSection("Anthropic"));
+            // One client for the life of the process
+            services.TryAddSingleton<Elysian.Application.Features.Contact.IContactSpamClassifier, AnthropicContactSpamClassifier>();
+            services.TryAddTransient<Elysian.Application.Features.Contact.IContactSpamFilter, Elysian.Application.Features.Contact.ContactSpamFilter>();
 
             AddResendEmail(services, configuration);
             services.TryAddScoped<ITenantSecretStore>(serviceProvider => new ConfigurationTenantSecretStore(configuration,
